@@ -1,6 +1,8 @@
 # Proxy Pool
 
-从 [proxy.scdn.io](https://proxy.scdn.io/api_docs.php) 获取代理，通过百度验证可用性，并以 JSON/TXT 格式保存去重后的 IP。
+获取、验证并管理代理 IP 池，支持 HTTP/HTTPS/SOCKS4/SOCKS5 协议，以 JSON/TXT 格式保存去重后的 IP。
+
+默认使用 [proxy.scdn.io](https://proxy.scdn.io/api_docs.php) API，可通过 `--api` 替换为其他代理源。
 
 ## 安装
 

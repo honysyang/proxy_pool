@@ -5,7 +5,7 @@ description: 当用户需要从 proxy.scdn.io 获取、验证、保存或管理 
 
 # Proxy Pool
 
-基于 [proxy.scdn.io](https://proxy.scdn.io/api_docs.php) 的代理池工具：获取代理、通过百度验证可用性、以 JSON/TXT 保存去重后的 IP。
+通用代理池工具：获取代理、验证可用性、以 JSON/TXT 保存去重后的 IP。默认使用 proxy.scdn.io，可替换为其他代理 API。
 
 ## 何时使用
 
@@ -22,8 +22,6 @@ proxy_pool_project/
 ```
 
 ## API 参数
-
-参考官方文档：https://proxy.scdn.io/api_docs.php
 
 - `protocol`: `http`、`https`、`socks4`、`socks5`、`all`（默认 `http`）
 - `count`: 1-20（默认 1）

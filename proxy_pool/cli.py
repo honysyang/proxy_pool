@@ -15,7 +15,7 @@ DEFAULT_TIMEOUT = 8
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Proxy Pool: 从 proxy.scdn.io 获取、验证代理并保存去重后的 IP"
+        description="Proxy Pool: 获取、验证代理并保存去重后的 IP"
     )
     parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址")
     parser.add_argument(

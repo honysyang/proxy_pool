@@ -2,13 +2,13 @@
 
 ## 项目概述
 
-代理池管理项目，基于 [proxy.scdn.io API 文档](https://proxy.scdn.io/api_docs.php)。
+通用代理池管理项目：获取、验证、保存代理 IP。
 
 核心模块：
 
-1. `proxy_pool/api.py`：调用 `proxy.scdn.io/api/get_proxy.php`。
+1. `proxy_pool/api.py`：调用代理 API 获取原始代理列表。
+   - 默认 `proxy.scdn.io/api/get_proxy.php`，可通过 `--api` 替换。
    - 支持参数：`protocol`（http/https/socks4/socks5/all）、`count`（1-20）、`country_code`（如 CN、US）。
-   - 返回结构：`{"code": 200, "message": "success", "data": {"proxies": ["ip:port"], "count": N}}`。
 2. `proxy_pool/checker.py`：通过访问 `www.baidu.com` 验证代理。
    - `protocol=all` 时默认用 `http` 尝试验证。
    - SOCKS 代理依赖 `requests[socks]`。

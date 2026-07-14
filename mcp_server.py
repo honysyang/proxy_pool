@@ -29,7 +29,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="fetch_proxies",
-            description="从 proxy.scdn.io API 获取代理列表",
+            description="从代理 API 获取代理列表",
             inputSchema={
                 "type": "object",
                 "properties": {

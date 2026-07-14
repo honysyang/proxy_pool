@@ -5,7 +5,7 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "proxy-pool"
 version = "0.1.0"
-description = "从 proxy.scdn.io 获取、验证并管理 HTTP/HTTPS/SOCKS4/SOCKS5 代理 IP 池"
+description = "获取、验证并管理 HTTP/HTTPS/SOCKS4/SOCKS5 代理 IP 池"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
