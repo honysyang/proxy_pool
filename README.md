@@ -98,11 +98,13 @@ python3 -m proxy_pool.cli -c 5
 python3 mcp_server.py
 ```
 
-暴露工具：`fetch_proxies`、`check_proxies`、`save_proxies`、`load_proxies`。
+暴露工具：`fetch_proxies`（支持 `provider`、`protocol`、`count`、`country_code`）、`check_proxies`、`save_proxies`、`load_proxies`。
 
 ### MCP JSON 配置
 
 标准 MCP 配置格式如下：
+
+注册新代理源后，可通过 `--provider` 参数或 MCP 的 `provider` 字段切换源。
 
 #### 方式一：虚拟环境安装后调用（推荐）
 
