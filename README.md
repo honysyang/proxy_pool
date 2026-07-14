@@ -189,6 +189,24 @@ python3 -m proxy_pool.cli --scrape --limit 10
 当前内置网页源：`proxymist`、`zdaye`。
 
 > 注意：`https://openclaw.allegro.earth/` 不是代理列表网站，而是暴露的 OpenClaw 实例监控面板，**不适合作为代理源**。
+> 如需收集该站点 IP 用于统计/安全研究，见下方 `scripts/collect_openclaw_stats.py`。
+
+## 统计：收集 OpenClaw 暴露实例
+
+`scripts/collect_openclaw_stats.py` 用于从 `https://openclaw.allegro.earth/` 收集暴露实例的 IP:端口，**仅用于统计或安全研究，不作为代理使用**。
+
+```bash
+# 抓取前 10 页
+python3 scripts/collect_openclaw_stats.py --pages 10 --delay 2
+
+# 抓取全部 10000+ 页（耗时较长，建议后台运行）
+python3 scripts/collect_openclaw_stats.py --pages 10062 --delay 1
+
+# 随机采样 100 条
+python3 scripts/collect_openclaw_stats.py --pages 100 --sample 100
+```
+
+输出文件：`openclaw_stats.json`，格式为 `{"source": "...", "total_ips": N, "ips": ["ip:port", ...]}`。
 
 ### 各客户端配置位置
 

@@ -26,7 +26,8 @@
 7. `proxy_pool/collector.py`：从多个 API + 网页源收集指定数量的新唯一 IP。
 8. `proxy_pool/cli.py`：命令行入口。
 9. `mcp_server.py`：MCP Server，stdio 运行。
-10. `skill/SKILL.md`：Kimi Skill 定义。
+10. `scripts/collect_openclaw_stats.py`：单独脚本，用于统计 openclaw.allegro.earth 暴露实例（非代理源）。
+11. `skill/SKILL.md`：Kimi Skill 定义。
 
 ## 开发规范
 

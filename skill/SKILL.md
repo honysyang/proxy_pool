@@ -108,6 +108,7 @@ python3 -m proxy_pool.cli --scrape --limit 10
 当前内置网页源：`proxymist`、`zdaye`。
 
 > 注意：`https://openclaw.allegro.earth/` 不是代理列表网站，而是暴露的 OpenClaw 实例监控面板，不适合作为代理源。
+> 如需收集该站点用于统计/安全研究，使用 `scripts/collect_openclaw_stats.py`。
 
 ## 扩展代理源
 
