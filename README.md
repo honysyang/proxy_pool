@@ -4,12 +4,24 @@
 
 ## 安装
 
+Kali 等系统的 Python 受 PEP 668 保护，建议先创建虚拟环境：
+
 ```bash
 cd proxy_pool_project
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -e .
 ```
 
+或者直接用 `--break-system-packages`（不推荐）：
+
+```bash
+pip install -e . --break-system-packages
+```
+
 ## 命令行
+
+安装后使用 `proxy-pool` 命令：
 
 ```bash
 # 获取并验证 10 个 http 代理，保存到 proxy_pool.json
@@ -29,6 +41,12 @@ proxy-pool -c 20 -q
 
 # 保存为 txt
 proxy-pool -c 10 -f txt -o proxies.txt
+```
+
+不安装也可直接运行：
+
+```bash
+python3 -m proxy_pool.cli -c 5
 ```
 
 ### 参数说明
@@ -59,6 +77,46 @@ python3 mcp_server.py
 ```
 
 暴露工具：`fetch_proxies`、`check_proxies`、`save_proxies`、`load_proxies`。
+
+### MCP JSON 配置
+
+标准 MCP 配置格式如下：
+
+#### 方式一：虚拟环境安装后调用（推荐）
+
+```json
+{
+  "mcpServers": {
+    "proxy-pool": {
+      "command": "/home/kali/proxy_pool_project/.venv/bin/proxy-pool-mcp"
+    }
+  }
+}
+```
+
+#### 方式二：不安装，直接指定脚本
+
+```json
+{
+  "mcpServers": {
+    "proxy-pool": {
+      "command": "python3",
+      "args": [
+        "/home/kali/proxy_pool_project/mcp_server.py"
+      ],
+      "env": {
+        "PYTHONPATH": "/home/kali/proxy_pool_project"
+      }
+    }
+  }
+}
+```
+
+### 各客户端配置位置
+
+- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json`
+- **VS Code (Cline / Roo)**: 插件 MCP 设置中粘贴 JSON
+- **Kimi Code CLI**: MCP 设置中添加 `proxy-pool` server
 
 ## 输出格式
 
