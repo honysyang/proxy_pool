@@ -9,9 +9,10 @@ description: 当用户需要获取、验证、保存或管理 HTTP/HTTPS/SOCKS4/
 
 ## 何时使用
 
-- 用户提到“代理池”、“爬代理”、“获取代理”、“验证代理”、“保存 IP”、“新增代理源”、“抓取网页代理”等。
+- 用户提到“代理池”、“爬代理”、“获取代理”、“验证代理”、“保存 IP”、“新增代理源”、“抓取网页代理”、“收集100个IP”等。
 - 需要按协议（http/https/socks4/socks5/all）或国家代码筛选代理。
-- 需要从免费代理网站抓取 IP 并合并到本地 JSON 池。
+- 需要从多个源收集指定数量的新唯一 IP 并保存到 JSON。
+- 需要从本地 JSON 池读取 IP 返回给用户。
 
 ## 项目位置
 
@@ -21,6 +22,7 @@ proxy_pool_project/
 │   ├── providers/    # API 代理源提供商
 │   ├── scrapers/     # 网页代理源抓取器
 │   ├── aggregator.py # 聚合抓取结果到本地 JSON
+│   ├── collector.py  # 从多源收集指定数量 IP
 │   ├── api.py        # API 统一入口
 │   ├── checker.py    # 代理验证
 │   ├── storage.py    # 存储与去重
@@ -37,6 +39,26 @@ proxy_pool_project/
 - `country_code`: ISO 3166-1 两位国家代码，如 `CN`、`US`
 
 ## 命令行用法
+
+### 聚合收集模式
+
+从多个源收集 N 个新的唯一 IP 并保存到 `proxy_pool.json`：
+
+```bash
+# 收集 100 个新 IP
+python3 -m proxy_pool.cli --collect 100
+
+# 只使用 scdn 和 proxymist
+python3 -m proxy_pool.cli --collect 100 --sources scdn,proxymist
+```
+
+### 读取本地池
+
+```python
+from proxy_pool.storage import load_ips
+
+ips = load_ips("proxy_pool.json")
+```
 
 ### API 获取模式
 
@@ -114,11 +136,12 @@ class MySourceProvider(BaseProvider):
 
 如果环境已注册 `mcp_server.py`，可直接调用：
 
-- `fetch_proxies`: 从 API 拉取代理，支持 `provider`、`protocol`、`count`、`country_code`
-- `scrape_proxies`: 从网页抓取代理并合并到本地 JSON，支持 `sources`、`limit`、`verify`
+- `fetch_proxies`: 从 API 拉取代理
+- `collect_proxies`: 从多个源聚合指定数量的新唯一 IP
+- `scrape_proxies`: 从网页抓取代理并合并到本地 JSON
 - `check_proxies`: 验证代理可用性
 - `save_proxies`: 保存代理到文件
-- `load_proxies`: 读取本地代理文件
+- `load_proxies`: 读取本地代理文件并返回 IP 列表
 
 ## 输出格式
 

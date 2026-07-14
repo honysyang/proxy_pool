@@ -20,6 +20,7 @@ from mcp.types import TextContent, Tool
 from proxy_pool.aggregator import merge_into_pool
 from proxy_pool.api import DEFAULT_API, fetch_proxies, list_providers
 from proxy_pool.checker import build_proxy_dict, check_proxy
+from proxy_pool.collector import DEFAULT_SOURCES, collect_ips
 from proxy_pool.scrapers import get_scraper, list_scrapers
 from proxy_pool.storage import load_ips, save_ips
 
@@ -121,6 +122,26 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="collect_proxies",
+            description="从多个代理源聚合指定数量的新唯一 IP 到本地 JSON 池",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "target_count": {"type": "integer", "description": "目标收集数量", "default": 100},
+                    "output_file": {"type": "string", "description": "输出文件路径", "default": "proxy_pool.json"},
+                    "sources": {
+                        "type": "string",
+                        "description": f"指定源，逗号分隔，可用: {DEFAULT_SOURCES}；默认全部",
+                        "default": None,
+                    },
+                    "protocol": {"type": "string", "enum": ["http", "https", "socks4", "socks5", "all"], "default": "http"},
+                    "api_count": {"type": "integer", "description": "每次 API 请求数量 1-20", "default": 20},
+                    "scrape_limit": {"type": "integer", "description": "每个网页源最多抓取数量", "default": 20},
+                    "country_code": {"type": "string", "description": "API 国家代码", "default": None},
+                },
+            },
+        ),
+        Tool(
             name="load_proxies",
             description="从本地文件读取代理列表",
             inputSchema={
@@ -146,6 +167,8 @@ async def call_tool(name: str, arguments: dict):
         result = _load(arguments)
     elif name == "scrape_proxies":
         result = _scrape(arguments)
+    elif name == "collect_proxies":
+        result = _collect(arguments)
     else:
         raise ValueError(f"未知工具: {name}")
 
@@ -223,6 +246,27 @@ def _scrape(arguments: dict):
         scrapers = [get_scraper(name) for name in list_scrapers()]
 
     stats = merge_into_pool(output_file=output_file, scrapers=scrapers, limit_per_source=limit, verify=verify)
+    return stats
+
+
+def _collect(arguments: dict):
+    target_count = arguments.get("target_count", 100)
+    output_file = arguments.get("output_file", "proxy_pool.json")
+    sources = arguments.get("sources")
+    protocol = arguments.get("protocol", "http")
+    api_count = arguments.get("api_count", 20)
+    scrape_limit = arguments.get("scrape_limit", 20)
+    country_code = arguments.get("country_code")
+
+    stats = collect_ips(
+        target_count=target_count,
+        sources=sources.split(",") if sources else None,
+        output_file=output_file,
+        protocol=protocol,
+        api_count=api_count,
+        scrape_limit=scrape_limit,
+        country_code=country_code,
+    )
     return stats
 
 

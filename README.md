@@ -100,6 +100,7 @@ python3 mcp_server.py
 
 暴露工具：
 - `fetch_proxies`：从 API 拉取代理
+- `collect_proxies`：从多个源聚合指定数量的新唯一 IP
 - `scrape_proxies`：从网页抓取代理并合并到本地 JSON
 - `check_proxies`：验证代理可用性
 - `save_proxies`：保存代理到文件
@@ -139,6 +140,32 @@ python3 mcp_server.py
     }
   }
 }
+```
+
+## 聚合收集模式
+
+从所有可用源（API + 网页）收集 **N 个新的唯一 IP**，自动去重后保存到 `proxy_pool.json`：
+
+```bash
+# 收集 100 个新 IP
+python3 -m proxy_pool.cli --collect 100
+
+# 只使用指定源
+python3 -m proxy_pool.cli --collect 100 --sources scdn,proxymist
+
+# 指定协议和国家
+python3 -m proxy_pool.cli --collect 100 -p http --country-code US
+```
+
+程序会依次尝试各个源，直到收集够目标数量或源耗尽。
+
+## 读取本地池
+
+```python
+from proxy_pool.storage import load_ips
+
+ips = load_ips("proxy_pool.json")
+print(ips)
 ```
 
 ## 网页抓取模式

@@ -23,9 +23,10 @@
    - `zdaye.py`: 站大爷抓取实现
    - `__init__.py`: 抓取器注册表
 6. `proxy_pool/aggregator.py`：聚合多个抓取源并合并到本地 JSON 池。
-7. `proxy_pool/cli.py`：命令行入口。
-8. `mcp_server.py`：MCP Server，stdio 运行。
-9. `skill/SKILL.md`：Kimi Skill 定义。
+7. `proxy_pool/collector.py`：从多个 API + 网页源收集指定数量的新唯一 IP。
+8. `proxy_pool/cli.py`：命令行入口。
+9. `mcp_server.py`：MCP Server，stdio 运行。
+10. `skill/SKILL.md`：Kimi Skill 定义。
 
 ## 开发规范
 

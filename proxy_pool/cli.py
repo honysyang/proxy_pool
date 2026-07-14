@@ -9,6 +9,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from .aggregator import merge_into_pool
 from .api import DEFAULT_API, fetch_proxies, list_providers
 from .checker import build_proxy_dict, check_proxy
+from .collector import DEFAULT_SOURCES, collect_ips
 from .scrapers import get_scraper, list_scrapers
 from .storage import save_ips
 
@@ -90,6 +91,37 @@ def _run_api_mode(args):
         print(f"\n[*] 已保存 {len(saved)} 个{source_label} IP（去重后）到: {os.path.abspath(output_file)}")
 
 
+def _run_collect_mode(args):
+    """聚合模式：从多个源收集指定数量的新唯一 IP。"""
+    output_file = args.output or "proxy_pool.json"
+    sources = args.sources.split(",") if args.sources else None
+
+    print(f"[*] 开始聚合收集 {args.collect} 个新的唯一 IP...")
+    stats = collect_ips(
+        target_count=args.collect,
+        sources=sources,
+        output_file=output_file,
+        protocol=args.protocol,
+        api_count=min(args.count, 20),
+        scrape_limit=args.limit,
+        country_code=args.country_code,
+    )
+
+    print(f"\n[*] 聚合完成：")
+    for name, source_stats in stats["sources"].items():
+        status = source_stats.get("status", "unknown")
+        count = source_stats.get("count", 0)
+        if status == "ok":
+            print(f"    [{name}] 成功贡献: {count} 条")
+        elif status == "skipped":
+            print(f"    [{name}] 跳过: {source_stats.get('error', 'unknown')}")
+        else:
+            print(f"    [{name}] 失败: {source_stats.get('error', 'unknown')}")
+
+    print(f"\n[*] 本次新增: {stats['collected']} 条, 池子总计: {stats['total']} 条")
+    print(f"[*] 已保存到: {os.path.abspath(output_file)}")
+
+
 def _run_scrape_mode(args):
     """网页抓取模式：爬取免费代理网站并合并到本地 JSON 池。"""
     output_file = args.output or "proxy_pool.json"
@@ -132,9 +164,16 @@ def main(argv=None):
         help="网页抓取模式：从免费代理网站爬取并合并到本地 JSON 池",
     )
     parser.add_argument(
+        "--collect",
+        type=int,
+        default=None,
+        metavar="N",
+        help="聚合模式：从所有源收集 N 个新的唯一 IP 并保存到 JSON",
+    )
+    parser.add_argument(
         "--sources",
         default=None,
-        help=f"指定抓取的网页源，逗号分隔，可用: {list_scrapers()}",
+        help=f"指定源，逗号分隔，可用: {DEFAULT_SOURCES}",
     )
     parser.add_argument(
         "--limit",
@@ -184,7 +223,9 @@ def main(argv=None):
     parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
     args = parser.parse_args(argv)
 
-    if args.scrape:
+    if args.collect is not None:
+        _run_collect_mode(args)
+    elif args.scrape:
         _run_scrape_mode(args)
     else:
         _run_api_mode(args)
