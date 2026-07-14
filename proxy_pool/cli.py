@@ -6,7 +6,7 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .api import DEFAULT_API, MAX_COUNT, VALID_PROTOCOLS, fetch_proxies
+from .api import DEFAULT_API, fetch_proxies, list_providers
 from .checker import build_proxy_dict, check_proxy
 from .storage import save_ips
 
@@ -17,18 +17,19 @@ def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Proxy Pool: 获取、验证代理并保存去重后的 IP"
     )
-    parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址")
+    parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址（默认 scdn，后续可扩展）")
+    parser.add_argument("--provider", default=None, help=f"指定代理提供商，可用: {list_providers()}")
     parser.add_argument(
         "-p", "--protocol",
         default="http",
-        choices=VALID_PROTOCOLS,
+        choices=["http", "https", "socks4", "socks5", "all"],
         help="代理协议类型（默认 http；all 表示任意协议）",
     )
     parser.add_argument(
         "-c", "--count",
         type=int,
         default=5,
-        help=f"获取代理数量，1-{MAX_COUNT}（默认 5）",
+        help="获取代理数量，1-20（默认 5）",
     )
     parser.add_argument(
         "--country-code",
@@ -51,8 +52,8 @@ def main(argv=None):
     parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
     args = parser.parse_args(argv)
 
-    if not 1 <= args.count <= MAX_COUNT:
-        print(f"[!] count 必须在 1-{MAX_COUNT} 之间", file=sys.stderr)
+    if not 1 <= args.count <= 20:
+        print("[!] count 必须在 1-20 之间", file=sys.stderr)
         sys.exit(1)
 
     output_file = args.output or ("proxy_pool.json" if args.format == "json" else "proxy_pool.txt")
@@ -60,7 +61,7 @@ def main(argv=None):
     extra = f"，国家 {args.country_code}" if args.country_code else ""
     print(f"[*] 正在从 {args.api} 获取 {args.count} 个 {args.protocol} 代理{extra}...")
     try:
-        raw_proxies = fetch_proxies(args.api, args.protocol, args.count, args.country_code)
+        raw_proxies = fetch_proxies(args.api, args.protocol, args.count, args.country_code, args.provider)
     except (ValueError, RuntimeError) as e:
         print(f"[!] {e}", file=sys.stderr)
         sys.exit(1)

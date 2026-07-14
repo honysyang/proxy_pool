@@ -17,7 +17,7 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from proxy_pool.api import DEFAULT_API, MAX_COUNT, VALID_PROTOCOLS, fetch_proxies
+from proxy_pool.api import DEFAULT_API, fetch_proxies, list_providers
 from proxy_pool.checker import build_proxy_dict, check_proxy
 from proxy_pool.storage import load_ips, save_ips
 
@@ -33,16 +33,17 @@ async def list_tools() -> list[Tool]:
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "api_url": {"type": "string", "description": "代理 API 地址", "default": DEFAULT_API},
+                    "api_url": {"type": "string", "description": "代理 API 地址（默认 scdn）", "default": DEFAULT_API},
+                    "provider": {"type": "string", "description": f"指定提供商，可用: {list_providers()}", "default": None},
                     "protocol": {
                         "type": "string",
-                        "enum": list(VALID_PROTOCOLS),
+                        "enum": ["http", "https", "socks4", "socks5", "all"],
                         "description": "代理协议类型",
                         "default": "http",
                     },
                     "count": {
                         "type": "integer",
-                        "description": f"获取数量，1-{MAX_COUNT}",
+                        "description": "获取数量，1-20",
                         "default": 5,
                     },
                     "country_code": {
@@ -132,10 +133,11 @@ async def call_tool(name: str, arguments: dict):
 
 def _fetch(arguments: dict):
     api_url = arguments.get("api_url", DEFAULT_API)
+    provider = arguments.get("provider")
     protocol = arguments.get("protocol", "http")
     count = arguments.get("count", 5)
     country_code = arguments.get("country_code")
-    raw = fetch_proxies(api_url, protocol, count, country_code)
+    raw = fetch_proxies(api_url, protocol, count, country_code, provider)
     proxy_urls = []
     for item in raw:
         pd = build_proxy_dict(item, protocol)

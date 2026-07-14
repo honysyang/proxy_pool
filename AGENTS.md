@@ -6,9 +6,13 @@
 
 核心模块：
 
-1. `proxy_pool/api.py`：调用代理 API 获取原始代理列表。
-   - 默认 `proxy.scdn.io/api/get_proxy.php`，可通过 `--api` 替换。
-   - 支持参数：`protocol`（http/https/socks4/socks5/all）、`count`（1-20）、`country_code`（如 CN、US）。
+1. `proxy_pool/api.py`：代理 API 统一入口，通过 Provider 模式分发。
+   - 默认 `scdn` 提供商。
+   - 新增代理源：继承 `proxy_pool/providers/base.py` 中的 `BaseProvider`，在 `proxy_pool/providers/__init__.py` 注册。
+2. `proxy_pool/providers/`
+   - `base.py`: `BaseProvider` 抽象基类
+   - `scdn.py`: scdn.io 提供商实现
+   - `__init__.py`: 提供商注册表
 2. `proxy_pool/checker.py`：通过访问 `www.baidu.com` 验证代理。
    - `protocol=all` 时默认用 `http` 尝试验证。
    - SOCKS 代理依赖 `requests[socks]`。

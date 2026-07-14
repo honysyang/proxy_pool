@@ -2,7 +2,7 @@
 
 获取、验证并管理代理 IP 池，支持 HTTP/HTTPS/SOCKS4/SOCKS5 协议，以 JSON/TXT 格式保存去重后的 IP。
 
-默认使用 [proxy.scdn.io](https://proxy.scdn.io/api_docs.php) API，可通过 `--api` 替换为其他代理源。
+默认内置 `scdn` 提供商（proxy.scdn.io），支持通过 Provider 模式扩展更多代理源。
 
 ## 安装
 
@@ -63,6 +63,26 @@ python3 -m proxy_pool.cli -c 5
 | `-f, --format` | 输出格式：`json`（默认）、`txt` |
 | `-q, --quick` | 快速模式，不验证 |
 | `--save-all` | 保存所有获取到的代理 |
+| `--provider` | 指定代理提供商名称 |
+
+## 扩展代理源
+
+在 `proxy_pool/providers/` 下新建模块，继承 `BaseProvider` 并实现 `fetch` 方法，然后在 `proxy_pool/providers/__init__.py` 中注册即可。
+
+示例结构：
+
+```python
+# proxy_pool/providers/my_source.py
+from .base import BaseProvider
+
+class MySourceProvider(BaseProvider):
+    name = "my_source"
+    default_api_url = "https://example.com/api"
+
+    def fetch(self, protocol="http", count=5, country_code=None):
+        # 实现获取逻辑
+        return ["1.2.3.4:8080"]
+```
 
 ## 作为 Python 模块
 

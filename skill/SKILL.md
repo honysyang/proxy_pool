@@ -5,7 +5,7 @@ description: 当用户需要从 proxy.scdn.io 获取、验证、保存或管理 
 
 # Proxy Pool
 
-通用代理池工具：获取代理、验证可用性、以 JSON/TXT 保存去重后的 IP。默认使用 proxy.scdn.io，可替换为其他代理 API。
+通用代理池工具：获取代理、验证可用性、以 JSON/TXT 保存去重后的 IP。默认内置 scdn 提供商，支持扩展其他代理源。
 
 ## 何时使用
 
