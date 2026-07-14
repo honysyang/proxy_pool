@@ -98,7 +98,12 @@ python3 -m proxy_pool.cli -c 5
 python3 mcp_server.py
 ```
 
-暴露工具：`fetch_proxies`（支持 `provider`、`protocol`、`count`、`country_code`）、`check_proxies`、`save_proxies`、`load_proxies`。
+暴露工具：
+- `fetch_proxies`：从 API 拉取代理
+- `scrape_proxies`：从网页抓取代理并合并到本地 JSON
+- `check_proxies`：验证代理可用性
+- `save_proxies`：保存代理到文件
+- `load_proxies`：读取本地代理文件
 
 ### MCP JSON 配置
 
@@ -135,6 +140,28 @@ python3 mcp_server.py
   }
 }
 ```
+
+## 网页抓取模式
+
+从免费代理网站直接爬取 IP 并**合并**到本地 JSON 池（`proxy_pool.json`）：
+
+```bash
+# 爬取所有内置网页源
+python3 -m proxy_pool.cli --scrape
+
+# 只爬 proxymist
+python3 -m proxy_pool.cli --scrape --sources proxymist
+
+# 爬取并验证
+python3 -m proxy_pool.cli --scrape --verify
+
+# 每个源最多 10 条
+python3 -m proxy_pool.cli --scrape --limit 10
+```
+
+当前内置网页源：`proxymist`、`zdaye`。
+
+> 注意：`https://openclaw.allegro.earth/` 不是代理列表网站，而是暴露的 OpenClaw 实例监控面板，**不适合作为代理源**。
 
 ### 各客户端配置位置
 

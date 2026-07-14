@@ -17,15 +17,23 @@
    - `protocol=all` 时默认用 `http` 尝试验证。
    - SOCKS 代理依赖 `requests[socks]`。
 4. `proxy_pool/storage.py`：保存/读取代理，支持 JSON 字典（自动去重）和 TXT 列表。
-5. `proxy_pool/cli.py`：命令行入口。
-6. `mcp_server.py`：MCP Server，stdio 运行。
-7. `skill/SKILL.md`：Kimi Skill 定义。
+5. `proxy_pool/scrapers/`：网页代理源抓取器。
+   - `base.py`: `BaseScraper` 抽象基类
+   - `proxymist.py`: ProxyMist 抓取实现
+   - `zdaye.py`: 站大爷抓取实现
+   - `__init__.py`: 抓取器注册表
+6. `proxy_pool/aggregator.py`：聚合多个抓取源并合并到本地 JSON 池。
+7. `proxy_pool/cli.py`：命令行入口。
+8. `mcp_server.py`：MCP Server，stdio 运行。
+9. `skill/SKILL.md`：Kimi Skill 定义。
 
 ## 开发规范
 
 - 保持模块单一职责。
-- 新增代理源：继承 `BaseProvider`，在 `proxy_pool/providers/__init__.py` 注册，并同步更新 `skill/SKILL.md`。
+- 新增代理源：继承 `BaseProvider`，在 `proxy_pool/providers/__init__.py` 注册。
+- 新增网页抓取源：继承 `BaseScraper`，在 `proxy_pool/scrapers/__init__.py` 注册。
 - 新增协议类型：同步更新 `cli.py`、`mcp_server.py` 中的 `choices`。
+- 文档变更同步更新 `README.md`、`skill/SKILL.md`。
 - JSON 保存格式以 `IP:port` 为 key，天然去重。
 
 ## 测试

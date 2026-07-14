@@ -6,52 +6,17 @@ import os
 import sys
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
+from .aggregator import merge_into_pool
 from .api import DEFAULT_API, fetch_proxies, list_providers
 from .checker import build_proxy_dict, check_proxy
+from .scrapers import get_scraper, list_scrapers
 from .storage import save_ips
 
 DEFAULT_TIMEOUT = 8
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(
-        description="Proxy Pool: 获取、验证代理并保存去重后的 IP"
-    )
-    parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址（默认 scdn，后续可扩展）")
-    parser.add_argument("--provider", default=None, help=f"指定代理提供商，可用: {list_providers()}")
-    parser.add_argument(
-        "-p", "--protocol",
-        default="http",
-        choices=["http", "https", "socks4", "socks5", "all"],
-        help="代理协议类型（默认 http；all 表示任意协议）",
-    )
-    parser.add_argument(
-        "-c", "--count",
-        type=int,
-        default=5,
-        help="获取代理数量，1-20（默认 5）",
-    )
-    parser.add_argument(
-        "--country-code",
-        default=None,
-        help="ISO 3166-1 两位国家代码，如 CN、US",
-    )
-    parser.add_argument("-t", "--timeout", type=int, default=DEFAULT_TIMEOUT, help="验证超时时间（秒）")
-    parser.add_argument("-w", "--workers", type=int, default=10, help="并发验证线程数")
-    parser.add_argument("--json", action="store_true", help="以 JSON 格式输出到控制台")
-    parser.add_argument("-q", "--quick", action="store_true", help="快速模式：只输出获取到的代理，不验证可用性")
-    parser.add_argument("-o", "--output", default=None, help="保存 IP 的文件路径（默认根据 format 自动选择）")
-    parser.add_argument(
-        "-f", "--format",
-        default="json",
-        choices=["txt", "json"],
-        help="保存格式：json 字典（默认，自动去重），txt 每行一个 IP",
-    )
-    parser.add_argument("--save-all", action="store_true", help="保存所有获取到的 IP（默认只保存验证通过的）")
-    parser.add_argument("--no-dedup", action="store_true", help="保存时不去重")
-    parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
-    args = parser.parse_args(argv)
-
+def _run_api_mode(args):
+    """API 获取模式。"""
     if not 1 <= args.count <= 20:
         print("[!] count 必须在 1-20 之间", file=sys.stderr)
         sys.exit(1)
@@ -123,6 +88,106 @@ def main(argv=None):
         saved = save_ips(output_file, save_source, protocol=args.protocol, dedup=not args.no_dedup, format=args.format)
         source_label = "全部" if args.save_all else "可用"
         print(f"\n[*] 已保存 {len(saved)} 个{source_label} IP（去重后）到: {os.path.abspath(output_file)}")
+
+
+def _run_scrape_mode(args):
+    """网页抓取模式：爬取免费代理网站并合并到本地 JSON 池。"""
+    output_file = args.output or "proxy_pool.json"
+
+    if args.sources:
+        scrapers = [get_scraper(name) for name in args.sources.split(",")]
+    else:
+        scrapers = [get_scraper(name) for name in list_scrapers()]
+
+    print(f"[*] 开始从 {len(scrapers)} 个网页源抓取代理，每个源最多 {args.limit} 条...")
+    stats = merge_into_pool(
+        output_file=output_file,
+        scrapers=scrapers,
+        limit_per_source=args.limit,
+        verify=args.verify,
+    )
+
+    print(f"\n[*] 抓取完成：")
+    for name, source_stats in stats["sources"].items():
+        status = source_stats.get("status", "unknown")
+        count = source_stats.get("count", 0)
+        if status == "ok":
+            added = source_stats.get("added", 0)
+            updated = source_stats.get("updated", 0)
+            print(f"    [{name}] 成功: {count} 条 (新增 {added}, 更新 {updated})")
+        else:
+            print(f"    [{name}] 失败: {source_stats.get('error', 'unknown')}")
+
+    print(f"\n[*] 汇总: 新增 {stats['added']} 条, 更新 {stats['updated']} 条, 池子总计 {stats['total']} 条")
+    print(f"[*] 已保存到: {os.path.abspath(output_file)}")
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(
+        description="Proxy Pool: 获取、验证代理并保存去重后的 IP"
+    )
+    parser.add_argument(
+        "--scrape",
+        action="store_true",
+        help="网页抓取模式：从免费代理网站爬取并合并到本地 JSON 池",
+    )
+    parser.add_argument(
+        "--sources",
+        default=None,
+        help=f"指定抓取的网页源，逗号分隔，可用: {list_scrapers()}",
+    )
+    parser.add_argument(
+        "--limit",
+        type=int,
+        default=20,
+        help="每个网页源最多抓取数量（默认 20）",
+    )
+    parser.add_argument(
+        "--verify",
+        action="store_true",
+        help="抓取后验证代理可用性（默认不验证）",
+    )
+
+    # API 模式参数
+    parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址（默认 scdn，后续可扩展）")
+    parser.add_argument("--provider", default=None, help=f"指定代理提供商，可用: {list_providers()}")
+    parser.add_argument(
+        "-p", "--protocol",
+        default="http",
+        choices=["http", "https", "socks4", "socks5", "all"],
+        help="代理协议类型（默认 http；all 表示任意协议）",
+    )
+    parser.add_argument(
+        "-c", "--count",
+        type=int,
+        default=5,
+        help="获取代理数量，1-20（默认 5）",
+    )
+    parser.add_argument(
+        "--country-code",
+        default=None,
+        help="ISO 3166-1 两位国家代码，如 CN、US",
+    )
+    parser.add_argument("-t", "--timeout", type=int, default=DEFAULT_TIMEOUT, help="验证超时时间（秒）")
+    parser.add_argument("-w", "--workers", type=int, default=10, help="并发验证线程数")
+    parser.add_argument("--json", action="store_true", help="以 JSON 格式输出到控制台")
+    parser.add_argument("-q", "--quick", action="store_true", help="快速模式：只输出获取到的代理，不验证可用性")
+    parser.add_argument("-o", "--output", default=None, help="保存 IP 的文件路径（默认根据 format 自动选择）")
+    parser.add_argument(
+        "-f", "--format",
+        default="json",
+        choices=["txt", "json"],
+        help="保存格式：json 字典（默认，自动去重），txt 每行一个 IP",
+    )
+    parser.add_argument("--save-all", action="store_true", help="保存所有获取到的 IP（默认只保存验证通过的）")
+    parser.add_argument("--no-dedup", action="store_true", help="保存时不去重")
+    parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
+    args = parser.parse_args(argv)
+
+    if args.scrape:
+        _run_scrape_mode(args)
+    else:
+        _run_api_mode(args)
 
 
 if __name__ == "__main__":

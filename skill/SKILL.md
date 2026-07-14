@@ -9,15 +9,18 @@ description: 当用户需要获取、验证、保存或管理 HTTP/HTTPS/SOCKS4/
 
 ## 何时使用
 
-- 用户提到“代理池”、“爬代理”、“获取代理”、“验证代理”、“保存 IP”、“新增代理源”等。
+- 用户提到“代理池”、“爬代理”、“获取代理”、“验证代理”、“保存 IP”、“新增代理源”、“抓取网页代理”等。
 - 需要按协议（http/https/socks4/socks5/all）或国家代码筛选代理。
+- 需要从免费代理网站抓取 IP 并合并到本地 JSON 池。
 
 ## 项目位置
 
 ```
 proxy_pool_project/
 ├── proxy_pool/
-│   ├── providers/    # 代理源提供商
+│   ├── providers/    # API 代理源提供商
+│   ├── scrapers/     # 网页代理源抓取器
+│   ├── aggregator.py # 聚合抓取结果到本地 JSON
 │   ├── api.py        # API 统一入口
 │   ├── checker.py    # 代理验证
 │   ├── storage.py    # 存储与去重
@@ -28,12 +31,14 @@ proxy_pool_project/
 
 ## API 参数
 
-- `provider`: 代理源名称，默认 `scdn`
+- `provider`: API 代理源名称，默认 `scdn`
 - `protocol`: `http`、`https`、`socks4`、`socks5`、`all`（默认 `http`）
 - `count`: 1-20（默认 1）
 - `country_code`: ISO 3166-1 两位国家代码，如 `CN`、`US`
 
 ## 命令行用法
+
+### API 获取模式
 
 ```bash
 cd proxy_pool_project
@@ -59,6 +64,28 @@ python3 -m proxy_pool.cli -c 20 -q
 # 保存为 txt
 python3 -m proxy_pool.cli -c 10 -f txt
 ```
+
+### 网页抓取模式
+
+从免费代理网站爬取 IP 并合并到本地 `proxy_pool.json`：
+
+```bash
+# 爬取所有内置网页源
+python3 -m proxy_pool.cli --scrape
+
+# 只爬 proxymist
+python3 -m proxy_pool.cli --scrape --sources proxymist
+
+# 爬取并验证
+python3 -m proxy_pool.cli --scrape --verify
+
+# 每个源最多 10 条
+python3 -m proxy_pool.cli --scrape --limit 10
+```
+
+当前内置网页源：`proxymist`、`zdaye`。
+
+> 注意：`https://openclaw.allegro.earth/` 不是代理列表网站，而是暴露的 OpenClaw 实例监控面板，不适合作为代理源。
 
 ## 扩展代理源
 
@@ -87,7 +114,8 @@ class MySourceProvider(BaseProvider):
 
 如果环境已注册 `mcp_server.py`，可直接调用：
 
-- `fetch_proxies`: 拉取代理，支持 `provider`、`protocol`、`count`、`country_code`
+- `fetch_proxies`: 从 API 拉取代理，支持 `provider`、`protocol`、`count`、`country_code`
+- `scrape_proxies`: 从网页抓取代理并合并到本地 JSON，支持 `sources`、`limit`、`verify`
 - `check_proxies`: 验证代理可用性
 - `save_proxies`: 保存代理到文件
 - `load_proxies`: 读取本地代理文件

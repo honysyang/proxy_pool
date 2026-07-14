@@ -17,8 +17,10 @@ from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
+from proxy_pool.aggregator import merge_into_pool
 from proxy_pool.api import DEFAULT_API, fetch_proxies, list_providers
 from proxy_pool.checker import build_proxy_dict, check_proxy
+from proxy_pool.scrapers import get_scraper, list_scrapers
 from proxy_pool.storage import load_ips, save_ips
 
 app = Server("proxy-pool")
@@ -102,6 +104,23 @@ async def list_tools() -> list[Tool]:
             },
         ),
         Tool(
+            name="scrape_proxies",
+            description="从免费代理网站爬取代理并合并到本地 JSON 池",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "output_file": {"type": "string", "description": "输出文件路径", "default": "proxy_pool.json"},
+                    "sources": {
+                        "type": "string",
+                        "description": f"指定网页源，逗号分隔，可用: {list_scrapers()}；默认全部",
+                        "default": None,
+                    },
+                    "limit": {"type": "integer", "description": "每个源最多抓取数量", "default": 20},
+                    "verify": {"type": "boolean", "description": "是否验证可用性", "default": False},
+                },
+            },
+        ),
+        Tool(
             name="load_proxies",
             description="从本地文件读取代理列表",
             inputSchema={
@@ -125,6 +144,8 @@ async def call_tool(name: str, arguments: dict):
         result = _save(arguments)
     elif name == "load_proxies":
         result = _load(arguments)
+    elif name == "scrape_proxies":
+        result = _scrape(arguments)
     else:
         raise ValueError(f"未知工具: {name}")
 
@@ -188,6 +209,21 @@ def _load(arguments: dict):
     input_file = arguments.get("input_file", "proxy_pool.json")
     proxies = load_ips(input_file)
     return {"count": len(proxies), "proxies": proxies}
+
+
+def _scrape(arguments: dict):
+    output_file = arguments.get("output_file", "proxy_pool.json")
+    sources = arguments.get("sources")
+    limit = arguments.get("limit", 20)
+    verify = arguments.get("verify", False)
+
+    if sources:
+        scrapers = [get_scraper(name) for name in sources.split(",")]
+    else:
+        scrapers = [get_scraper(name) for name in list_scrapers()]
+
+    stats = merge_into_pool(output_file=output_file, scrapers=scrapers, limit_per_source=limit, verify=verify)
+    return stats
 
 
 async def main():
