@@ -52,7 +52,7 @@ python3 -m proxy_pool.cli --output-count 10 --json
 
 ## 新增信息源
 
-1. 在 `scripts/sources/` 新建 `.py`，实现 `fetch(limit)`
+1. 在 `scripts/sources/` 新建 `.py`，实现 `fetch(limit=20, proxy=None)`
 2. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
 
 示例：
@@ -72,7 +72,8 @@ def fetch(limit=20):
 ## MCP 工具
 
 - `collect_proxies`：收集 IP
-- `verify_proxies`：验证本地池
+- `fresh_proxies`：验证本地池
+- `output_proxies`：从本地池输出 N 个 IP（不够则收集补足）
 - `load_proxies`：读取本地池
 
 ## 注意
