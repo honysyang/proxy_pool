@@ -78,6 +78,59 @@ python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 | `--output-count` | 从池子输出 N 个 IP，不够则自动收集补足 |
 | `--json` | JSON 数组格式输出 |
 
+## 使用示例
+
+### 1. 收集并验证
+
+```bash
+cd proxy_pool_project
+
+# 默认收集 100 个，自动验证
+python3 -m proxy_pool.cli
+
+# 指定数量 + 指定源 + socks5 协议
+python3 -m proxy_pool.cli --target 50 --sources scdn -p socks5
+```
+
+### 2. 刷新池子
+
+```bash
+python3 -m proxy_pool.cli --fresh
+```
+
+### 3. 快速取代理使用
+
+```bash
+# 输出 10 个到终端（纯文本）
+python3 -m proxy_pool.cli --output-count 10
+
+# 输出为 JSON 数组，方便脚本解析
+python3 -m proxy_pool.cli --output-count 10 --json > proxies.json
+```
+
+### 4. 在 Python 中使用
+
+```python
+import requests
+from proxy_pool.storage import load_ips
+
+ips = load_ips("proxy_pool.json")
+proxy = f"http://{ips[0]}"
+
+resp = requests.get(
+    "https://httpbin.org/ip",
+    proxies={"http": proxy, "https": proxy},
+    timeout=15,
+)
+print(resp.text)
+```
+
+### 5. 验证代理是否隐藏真实 IP
+
+```bash
+python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
+```
+
 ## 新增信息源
 
 1. 在 `scripts/sources/` 新建 `.py`
@@ -139,23 +192,49 @@ python3 demo/test_pool_hide_ip.py --target-url http://你的公网地址:5000/ip
 
 ## MCP Server
 
-```bash
-python3 mcp_server.py
+`mcp_server.py` 通过 stdio 方式暴露 MCP 工具。
+
+### MCP 配置示例
+
+```json
+{
+  "mcpServers": {
+    "proxy-pool": {
+      "command": "python3",
+      "args": [
+        "/home/kali/proxy_pool_project/mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}
 ```
 
-暴露工具：
+> 请把 `/home/kali/proxy_pool_project` 替换为你本机的实际路径。
+
+### 暴露的工具
+
 - `collect_proxies`：收集 IP
 - `fresh_proxies`：验证本地池
 - `output_proxies`：从本地池输出 N 个 IP（不够则收集补足）
 - `load_proxies`：读取本地池
 
+### 工具调用示例
+
+```json
+{
+  "name": "collect_proxies",
+  "arguments": {
+    "target_count": 50,
+    "sources": "scdn",
+    "protocol": "http"
+  }
+}
+```
+
 ## Kimi Skill
 
 将 `skill/` 目录注册为 Kimi Skill 后，可直接通过自然语言调用本项目 CLI。
-
-## 关于 openclaw
-
-`scripts/sources/openclaw.py` 仅用于统计/安全研究，不作为代理源。
 
 ## 注意事项
 
