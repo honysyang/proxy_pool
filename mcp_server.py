@@ -1,28 +1,21 @@
 #!/usr/bin/env python3
-"""Proxy Pool MCP Server。
-
-以 stdio 方式运行，暴露以下工具：
-- fetch_proxies: 从代理 API 获取代理
-- check_proxies: 验证一组代理是否可用
-- save_proxies: 保存代理到本地文件
-- load_proxies: 从本地文件读取代理
-"""
+"""Proxy Pool MCP Server（简化版）。"""
 
 import asyncio
 import json
 import os
-from concurrent.futures import ThreadPoolExecutor, as_completed
+import subprocess
+import sys
 
 from mcp.server import Server
 from mcp.server.stdio import stdio_server
 from mcp.types import TextContent, Tool
 
-from proxy_pool.aggregator import merge_into_pool
-from proxy_pool.api import DEFAULT_API, fetch_proxies, list_providers
-from proxy_pool.checker import build_proxy_dict, check_proxy
-from proxy_pool.collector import DEFAULT_SOURCES, collect_ips
-from proxy_pool.scrapers import get_scraper, list_scrapers
-from proxy_pool.storage import load_ips, save_ips
+from proxy_pool.checker import check_proxy
+from proxy_pool.storage import load_ips
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
 
 app = Server("proxy-pool")
 
@@ -31,125 +24,38 @@ app = Server("proxy-pool")
 async def list_tools() -> list[Tool]:
     return [
         Tool(
-            name="fetch_proxies",
-            description="从代理 API 获取代理列表",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "api_url": {"type": "string", "description": "代理 API 地址（默认 scdn）", "default": DEFAULT_API},
-                    "provider": {"type": "string", "description": f"指定提供商，可用: {list_providers()}", "default": None},
-                    "protocol": {
-                        "type": "string",
-                        "enum": ["http", "https", "socks4", "socks5", "all"],
-                        "description": "代理协议类型",
-                        "default": "http",
-                    },
-                    "count": {
-                        "type": "integer",
-                        "description": "获取数量，1-20",
-                        "default": 5,
-                    },
-                    "country_code": {
-                        "type": "string",
-                        "description": "ISO 3166-1 两位国家代码，如 CN、US",
-                        "default": None,
-                    },
-                },
-            },
-        ),
-        Tool(
-            name="check_proxies",
-            description="验证一组代理是否能访问百度",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "proxies": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "代理地址列表，如 [\"1.2.3.4:8080\", \"socks5://5.6.7.8:1080\"]",
-                    },
-                    "protocol": {
-                        "type": "string",
-                        "enum": list(VALID_PROTOCOLS),
-                        "description": "代理协议类型（all 时默认用 http 验证）",
-                        "default": "http",
-                    },
-                    "timeout": {"type": "integer", "description": "超时秒数", "default": 8},
-                    "workers": {"type": "integer", "description": "并发数", "default": 10},
-                },
-                "required": ["proxies"],
-            },
-        ),
-        Tool(
-            name="save_proxies",
-            description="保存代理列表到本地文件（JSON 字典格式，自动去重）",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "proxies": {
-                        "type": "array",
-                        "items": {"type": "string"},
-                        "description": "代理地址列表",
-                    },
-                    "output_file": {"type": "string", "description": "输出文件路径", "default": "proxy_pool.json"},
-                    "protocol": {
-                        "type": "string",
-                        "enum": list(VALID_PROTOCOLS),
-                        "description": "代理协议类型",
-                        "default": "http",
-                    },
-                    "format": {"type": "string", "enum": ["json", "txt"], "default": "json"},
-                    "dedup": {"type": "boolean", "description": "是否去重", "default": True},
-                },
-                "required": ["proxies"],
-            },
-        ),
-        Tool(
-            name="scrape_proxies",
-            description="从免费代理网站爬取代理并合并到本地 JSON 池",
-            inputSchema={
-                "type": "object",
-                "properties": {
-                    "output_file": {"type": "string", "description": "输出文件路径", "default": "proxy_pool.json"},
-                    "sources": {
-                        "type": "string",
-                        "description": f"指定网页源，逗号分隔，可用: {list_scrapers()}；默认全部",
-                        "default": None,
-                    },
-                    "limit": {"type": "integer", "description": "每个源最多抓取数量", "default": 20},
-                    "verify": {"type": "boolean", "description": "是否验证可用性", "default": False},
-                },
-            },
-        ),
-        Tool(
             name="collect_proxies",
-            description="从多个代理源聚合指定数量的新唯一 IP 到本地 JSON 池",
+            description="收集指定数量的新唯一 IP 到本地 JSON 池",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "target_count": {"type": "integer", "description": "目标收集数量", "default": 100},
-                    "output_file": {"type": "string", "description": "输出文件路径", "default": "proxy_pool.json"},
-                    "sources": {
-                        "type": "string",
-                        "description": f"指定源，逗号分隔，可用: {DEFAULT_SOURCES}；默认全部",
-                        "default": None,
-                    },
-                    "protocol": {"type": "string", "enum": ["http", "https", "socks4", "socks5", "all"], "default": "http"},
-                    "api_count": {"type": "integer", "description": "每次 API 请求数量 1-20", "default": 20},
-                    "scrape_limit": {"type": "integer", "description": "每个网页源最多抓取数量", "default": 20},
-                    "country_code": {"type": "string", "description": "API 国家代码", "default": None},
+                    "target_count": {"type": "integer", "default": 100},
+                    "sources": {"type": "string", "description": "逗号分隔的源列表"},
+                    "output_file": {"type": "string", "default": "proxy_pool.json"},
+                    "protocol": {"type": "string", "default": "http"},
+                    "country_code": {"type": "string"},
+                },
+            },
+        ),
+        Tool(
+            name="verify_proxies",
+            description="验证本地 JSON 池中代理的可用性",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "input_file": {"type": "string", "default": "proxy_pool.json"},
+                    "timeout": {"type": "integer", "default": 8},
                 },
             },
         ),
         Tool(
             name="load_proxies",
-            description="从本地文件读取代理列表",
+            description="读取本地 JSON 池中的 IP 列表",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "input_file": {"type": "string", "description": "输入文件路径", "default": "proxy_pool.json"},
+                    "input_file": {"type": "string", "default": "proxy_pool.json"},
                 },
-                "required": ["input_file"],
             },
         ),
     ]
@@ -157,126 +63,63 @@ async def list_tools() -> list[Tool]:
 
 @app.call_tool()
 async def call_tool(name: str, arguments: dict):
-    if name == "fetch_proxies":
-        result = _fetch(arguments)
-    elif name == "check_proxies":
-        result = _check(arguments)
-    elif name == "save_proxies":
-        result = _save(arguments)
+    if name == "collect_proxies":
+        result = _collect(arguments)
+    elif name == "verify_proxies":
+        result = _verify(arguments)
     elif name == "load_proxies":
         result = _load(arguments)
-    elif name == "scrape_proxies":
-        result = _scrape(arguments)
-    elif name == "collect_proxies":
-        result = _collect(arguments)
     else:
         raise ValueError(f"未知工具: {name}")
-
     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
 
 
-def _fetch(arguments: dict):
-    api_url = arguments.get("api_url", DEFAULT_API)
-    provider = arguments.get("provider")
-    protocol = arguments.get("protocol", "http")
-    count = arguments.get("count", 5)
-    country_code = arguments.get("country_code")
-    raw = fetch_proxies(api_url, protocol, count, country_code, provider)
-    proxy_urls = []
-    for item in raw:
-        pd = build_proxy_dict(item, protocol)
-        if pd:
-            proxy_urls.append(pd.get(list(pd.keys())[0]))
-    return {"count": len(proxy_urls), "protocol": protocol, "proxies": proxy_urls}
+def _collect(arguments: dict):
+    cmd = [
+        "python3", FETCH_ALL,
+        "--target", str(arguments.get("target_count", 100)),
+        "--output", arguments.get("output_file", "proxy_pool.json"),
+        "--protocol", arguments.get("protocol", "http"),
+    ]
+    if arguments.get("sources"):
+        cmd.extend(["--sources", arguments["sources"]])
+    if arguments.get("country_code"):
+        cmd.extend(["--country-code", arguments["country_code"]])
+
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, text=True)
+        return {"status": "ok", "message": "收集完成"}
+    except subprocess.CalledProcessError as e:
+        return {"status": "error", "message": e.stderr or e.stdout}
 
 
-def _check(arguments: dict):
-    proxies = arguments.get("proxies", [])
-    protocol = arguments.get("protocol", "http")
+def _verify(arguments: dict):
+    input_file = arguments.get("input_file", "proxy_pool.json")
     timeout = arguments.get("timeout", 8)
-    workers = arguments.get("workers", 10)
-
-    proxy_dicts = []
-    for p in proxies:
-        pd = build_proxy_dict(p, protocol)
-        if pd:
-            proxy_dicts.append(pd)
+    ips = load_ips(input_file)
 
     working = []
     failed = []
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_proxy = {executor.submit(check_proxy, p, timeout): p for p in proxy_dicts}
-        for future in as_completed(future_to_proxy):
-            proxies, latency, status = future.result()
-            proxy_url = proxies.get(list(proxies.keys())[0])
-            if latency is not None:
-                working.append({"proxy": proxy_url, "latency_ms": latency, "status": status})
-            else:
-                failed.append(proxy_url)
+    for ip in ips:
+        pd = {"http": f"http://{ip}"}
+        _, latency, status = check_proxy(pd, timeout=timeout)
+        if latency is not None:
+            working.append({"proxy": ip, "latency_ms": latency, "status": status})
+        else:
+            failed.append(ip)
 
-    return {"total": len(proxy_dicts), "working": working, "failed": failed}
-
-
-def _save(arguments: dict):
-    proxies = arguments.get("proxies", [])
-    output_file = arguments.get("output_file", "proxy_pool.json")
-    protocol = arguments.get("protocol", "http")
-    format = arguments.get("format", "json")
-    dedup = arguments.get("dedup", True)
-
-    saved = save_ips(output_file, proxies, protocol=protocol, dedup=dedup, format=format)
-    return {"saved_count": len(saved), "output_file": os.path.abspath(output_file), "proxies": saved}
+    return {"total": len(ips), "working": working, "failed": failed}
 
 
 def _load(arguments: dict):
     input_file = arguments.get("input_file", "proxy_pool.json")
-    proxies = load_ips(input_file)
-    return {"count": len(proxies), "proxies": proxies}
-
-
-def _scrape(arguments: dict):
-    output_file = arguments.get("output_file", "proxy_pool.json")
-    sources = arguments.get("sources")
-    limit = arguments.get("limit", 20)
-    verify = arguments.get("verify", False)
-
-    if sources:
-        scrapers = [get_scraper(name) for name in sources.split(",")]
-    else:
-        scrapers = [get_scraper(name) for name in list_scrapers()]
-
-    stats = merge_into_pool(output_file=output_file, scrapers=scrapers, limit_per_source=limit, verify=verify)
-    return stats
-
-
-def _collect(arguments: dict):
-    target_count = arguments.get("target_count", 100)
-    output_file = arguments.get("output_file", "proxy_pool.json")
-    sources = arguments.get("sources")
-    protocol = arguments.get("protocol", "http")
-    api_count = arguments.get("api_count", 20)
-    scrape_limit = arguments.get("scrape_limit", 20)
-    country_code = arguments.get("country_code")
-
-    stats = collect_ips(
-        target_count=target_count,
-        sources=sources.split(",") if sources else None,
-        output_file=output_file,
-        protocol=protocol,
-        api_count=api_count,
-        scrape_limit=scrape_limit,
-        country_code=country_code,
-    )
-    return stats
+    ips = load_ips(input_file)
+    return {"count": len(ips), "proxies": ips}
 
 
 async def main():
     async with stdio_server() as (read_stream, write_stream):
-        await app.run(
-            read_stream,
-            write_stream,
-            app.create_initialization_options(),
-        )
+        await app.run(read_stream, write_stream, app.create_initialization_options())
 
 
 if __name__ == "__main__":

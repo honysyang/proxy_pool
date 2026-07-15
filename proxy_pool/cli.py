@@ -1,234 +1,94 @@
-"""命令行入口。"""
+"""命令行入口（简单包装）。"""
 
 import argparse
 import json
 import os
+import subprocess
 import sys
-from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from .aggregator import merge_into_pool
-from .api import DEFAULT_API, fetch_proxies, list_providers
-from .checker import build_proxy_dict, check_proxy
-from .collector import DEFAULT_SOURCES, collect_ips
-from .scrapers import get_scraper, list_scrapers
-from .storage import save_ips
-
-DEFAULT_TIMEOUT = 8
+from .checker import check_proxy
+from .storage import extract_ip_port, load_ips
 
 
-def _run_api_mode(args):
-    """API 获取模式。"""
-    if not 1 <= args.count <= 20:
-        print("[!] count 必须在 1-20 之间", file=sys.stderr)
-        sys.exit(1)
-
-    output_file = args.output or ("proxy_pool.json" if args.format == "json" else "proxy_pool.txt")
-
-    extra = f"，国家 {args.country_code}" if args.country_code else ""
-    print(f"[*] 正在从 {args.api} 获取 {args.count} 个 {args.protocol} 代理{extra}...")
-    try:
-        raw_proxies = fetch_proxies(args.api, args.protocol, args.count, args.country_code, args.provider)
-    except (ValueError, RuntimeError) as e:
-        print(f"[!] {e}", file=sys.stderr)
-        sys.exit(1)
-
-    if not raw_proxies:
-        print("[!] 未获取到任何代理", file=sys.stderr)
-        sys.exit(1)
-
-    proxy_dicts = []
-    for item in raw_proxies:
-        pd = build_proxy_dict(item, args.protocol)
-        if pd:
-            proxy_dicts.append(pd)
-
-    if not proxy_dicts:
-        print("[!] 未解析出任何可用代理", file=sys.stderr)
-        sys.exit(1)
-
-    if args.quick:
-        proxy_urls = [p.get(list(p.keys())[0]) for p in proxy_dicts if p]
-        if args.json:
-            print(json.dumps(proxy_urls, ensure_ascii=False, indent=2))
-        else:
-            for url in proxy_urls:
-                print(url)
-        if not args.no_save:
-            saved = save_ips(output_file, proxy_urls, protocol=args.protocol, dedup=not args.no_dedup, format=args.format)
-            print(f"\n[*] 已保存 {len(saved)} 个 IP 到: {os.path.abspath(output_file)}")
-        return
-
-    print(f"[*] 获取到 {len(proxy_dicts)} 个代理，开始并发验证...")
-
-    working = []
-    failed = []
-    with ThreadPoolExecutor(max_workers=args.workers) as executor:
-        future_to_proxy = {executor.submit(check_proxy, p, args.timeout): p for p in proxy_dicts}
-        for future in as_completed(future_to_proxy):
-            proxies, latency, status = future.result()
-            proxy_url = proxies.get(list(proxies.keys())[0])
-            if latency is not None:
-                working.append({"proxy": proxy_url, "latency_ms": latency, "status": status})
-                if not args.json:
-                    print(f"[OK] {proxy_url:<45} 延迟: {latency:>4}ms  状态码: {status}")
-            else:
-                failed.append(proxies)
-                if not args.json:
-                    print(f"[FAIL] {proxy_url}")
-
-    if args.json:
-        print(json.dumps(working, ensure_ascii=False, indent=2))
-
-    print(f"\n[*] 验证完成：{len(working)}/{len(proxy_dicts)} 个代理可用")
-
-    if not args.no_save:
-        if args.save_all:
-            save_source = [p.get(list(p.keys())[0]) for p in proxy_dicts if p]
-        else:
-            save_source = working
-        saved = save_ips(output_file, save_source, protocol=args.protocol, dedup=not args.no_dedup, format=args.format)
-        source_label = "全部" if args.save_all else "可用"
-        print(f"\n[*] 已保存 {len(saved)} 个{source_label} IP（去重后）到: {os.path.abspath(output_file)}")
-
-
-def _run_collect_mode(args):
-    """聚合模式：从多个源收集指定数量的新唯一 IP。"""
-    output_file = args.output or "proxy_pool.json"
-    sources = args.sources.split(",") if args.sources else None
-
-    print(f"[*] 开始聚合收集 {args.collect} 个新的唯一 IP...")
-    stats = collect_ips(
-        target_count=args.collect,
-        sources=sources,
-        output_file=output_file,
-        protocol=args.protocol,
-        api_count=min(args.count, 20),
-        scrape_limit=args.limit,
-        country_code=args.country_code,
-    )
-
-    print(f"\n[*] 聚合完成：")
-    for name, source_stats in stats["sources"].items():
-        status = source_stats.get("status", "unknown")
-        count = source_stats.get("count", 0)
-        if status == "ok":
-            print(f"    [{name}] 成功贡献: {count} 条")
-        elif status == "skipped":
-            print(f"    [{name}] 跳过: {source_stats.get('error', 'unknown')}")
-        else:
-            print(f"    [{name}] 失败: {source_stats.get('error', 'unknown')}")
-
-    print(f"\n[*] 本次新增: {stats['collected']} 条, 池子总计: {stats['total']} 条")
-    print(f"[*] 已保存到: {os.path.abspath(output_file)}")
-
-
-def _run_scrape_mode(args):
-    """网页抓取模式：爬取免费代理网站并合并到本地 JSON 池。"""
-    output_file = args.output or "proxy_pool.json"
-
+def _run_collect(args):
+    """调用 scripts/fetch_all.py 收集 IP。"""
+    script = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "scripts", "fetch_all.py")
+    cmd = [
+        "python3", script,
+        "--target", str(args.target),
+        "--output", args.output,
+        "--protocol", args.protocol,
+    ]
     if args.sources:
-        scrapers = [get_scraper(name) for name in args.sources.split(",")]
-    else:
-        scrapers = [get_scraper(name) for name in list_scrapers()]
+        cmd.extend(["--sources", args.sources])
+    if args.country_code:
+        cmd.extend(["--country-code", args.country_code])
 
-    print(f"[*] 开始从 {len(scrapers)} 个网页源抓取代理，每个源最多 {args.limit} 条...")
-    stats = merge_into_pool(
-        output_file=output_file,
-        scrapers=scrapers,
-        limit_per_source=args.limit,
-        verify=args.verify,
-    )
+    subprocess.run(cmd, check=True)
 
-    print(f"\n[*] 抓取完成：")
-    for name, source_stats in stats["sources"].items():
-        status = source_stats.get("status", "unknown")
-        count = source_stats.get("count", 0)
-        if status == "ok":
-            added = source_stats.get("added", 0)
-            updated = source_stats.get("updated", 0)
-            print(f"    [{name}] 成功: {count} 条 (新增 {added}, 更新 {updated})")
+
+def _run_verify(args):
+    """验证本地池中的代理。"""
+    ips = load_ips(args.output)
+    print(f"[*] 开始验证 {len(ips)} 个代理...")
+    working = 0
+    failed = 0
+    for ip in ips:
+        protocol = "http"
+        pd = {protocol: f"{protocol}://{ip}"}
+        _, latency, status = check_proxy(pd, timeout=args.timeout)
+        if latency is not None:
+            print(f"[OK] {ip:<30} 延迟: {latency:>4}ms 状态码: {status}")
+            working += 1
         else:
-            print(f"    [{name}] 失败: {source_stats.get('error', 'unknown')}")
+            print(f"[FAIL] {ip}")
+            failed += 1
+    print(f"\n[*] 验证完成：{working}/{len(ips)} 可用")
 
-    print(f"\n[*] 汇总: 新增 {stats['added']} 条, 更新 {stats['updated']} 条, 池子总计 {stats['total']} 条")
-    print(f"[*] 已保存到: {os.path.abspath(output_file)}")
+
+def _run_list(args):
+    """列出本地池中的 IP。"""
+    ips = load_ips(args.output)
+    if args.json:
+        print(json.dumps(ips, ensure_ascii=False, indent=2))
+    else:
+        for ip in ips:
+            print(ip)
+    print(f"\n[*] 共 {len(ips)} 条")
 
 
 def main(argv=None):
-    parser = argparse.ArgumentParser(
-        description="Proxy Pool: 获取、验证代理并保存去重后的 IP"
-    )
-    parser.add_argument(
-        "--scrape",
-        action="store_true",
-        help="网页抓取模式：从免费代理网站爬取并合并到本地 JSON 池",
-    )
-    parser.add_argument(
-        "--collect",
-        type=int,
-        default=None,
-        metavar="N",
-        help="聚合模式：从所有源收集 N 个新的唯一 IP 并保存到 JSON",
-    )
-    parser.add_argument(
-        "--sources",
-        default=None,
-        help=f"指定源，逗号分隔，可用: {DEFAULT_SOURCES}",
-    )
-    parser.add_argument(
-        "--limit",
-        type=int,
-        default=20,
-        help="每个网页源最多抓取数量（默认 20）",
-    )
-    parser.add_argument(
-        "--verify",
-        action="store_true",
-        help="抓取后验证代理可用性（默认不验证）",
-    )
+    parser = argparse.ArgumentParser(description="Proxy Pool: 收集、验证、读取代理 IP")
+    sub = parser.add_subparsers(dest="command", help="子命令")
 
-    # API 模式参数
-    parser.add_argument("--api", default=DEFAULT_API, help="代理 API 地址（默认 scdn，后续可扩展）")
-    parser.add_argument("--provider", default=None, help=f"指定代理提供商，可用: {list_providers()}")
-    parser.add_argument(
-        "-p", "--protocol",
-        default="http",
-        choices=["http", "https", "socks4", "socks5", "all"],
-        help="代理协议类型（默认 http；all 表示任意协议）",
-    )
-    parser.add_argument(
-        "-c", "--count",
-        type=int,
-        default=5,
-        help="获取代理数量，1-20（默认 5）",
-    )
-    parser.add_argument(
-        "--country-code",
-        default=None,
-        help="ISO 3166-1 两位国家代码，如 CN、US",
-    )
-    parser.add_argument("-t", "--timeout", type=int, default=DEFAULT_TIMEOUT, help="验证超时时间（秒）")
-    parser.add_argument("-w", "--workers", type=int, default=10, help="并发验证线程数")
-    parser.add_argument("--json", action="store_true", help="以 JSON 格式输出到控制台")
-    parser.add_argument("-q", "--quick", action="store_true", help="快速模式：只输出获取到的代理，不验证可用性")
-    parser.add_argument("-o", "--output", default=None, help="保存 IP 的文件路径（默认根据 format 自动选择）")
-    parser.add_argument(
-        "-f", "--format",
-        default="json",
-        choices=["txt", "json"],
-        help="保存格式：json 字典（默认，自动去重），txt 每行一个 IP",
-    )
-    parser.add_argument("--save-all", action="store_true", help="保存所有获取到的 IP（默认只保存验证通过的）")
-    parser.add_argument("--no-dedup", action="store_true", help="保存时不去重")
-    parser.add_argument("--no-save", action="store_true", help="不保存到本地文件")
+    # collect
+    p_collect = sub.add_parser("collect", help="收集 IP 到本地 JSON 池")
+    p_collect.add_argument("--target", type=int, default=100, help="目标数量（默认 100）")
+    p_collect.add_argument("--sources", default=None, help="指定源，逗号分隔")
+    p_collect.add_argument("-o", "--output", default="proxy_pool.json", help="输出文件")
+    p_collect.add_argument("-p", "--protocol", default="http", help="scdn 协议参数")
+    p_collect.add_argument("--country-code", default=None, help="scdn 国家代码参数")
+
+    # verify
+    p_verify = sub.add_parser("verify", help="验证本地池中的代理")
+    p_verify.add_argument("-o", "--output", default="proxy_pool.json", help="输入文件")
+    p_verify.add_argument("-t", "--timeout", type=int, default=8, help="超时秒数")
+
+    # list
+    p_list = sub.add_parser("list", help="列出本地池中的 IP")
+    p_list.add_argument("-o", "--output", default="proxy_pool.json", help="输入文件")
+    p_list.add_argument("--json", action="store_true", help="JSON 格式输出")
+
     args = parser.parse_args(argv)
 
-    if args.collect is not None:
-        _run_collect_mode(args)
-    elif args.scrape:
-        _run_scrape_mode(args)
+    if args.command == "collect":
+        _run_collect(args)
+    elif args.command == "verify":
+        _run_verify(args)
+    elif args.command == "list":
+        _run_list(args)
     else:
-        _run_api_mode(args)
+        parser.print_help()
 
 
 if __name__ == "__main__":

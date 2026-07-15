@@ -1,130 +1,102 @@
 # Proxy Pool
 
-获取、验证并管理代理 IP 池，支持 HTTP/HTTPS/SOCKS4/SOCKS5 协议，以 JSON/TXT 格式保存去重后的 IP。
+获取、验证并管理代理 IP 池。所有 IP 提取源统一放在 `scripts/sources/` 下，由 `scripts/fetch_all.py` 统一调度。
 
-默认内置 `scdn` 提供商（proxy.scdn.io），支持通过 Provider 模式扩展更多代理源。
+## 项目结构
 
-## 安装
-
-Kali 等系统的 Python 受 PEP 668 保护，建议先创建虚拟环境：
-
-```bash
-cd proxy_pool_project
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -e .
+```text
+proxy_pool_project/
+├── scripts/
+│   ├── fetch_all.py          # 统一调度入口
+│   └── sources/              # IP 提取源
+│       ├── scdn.py           # API 提取
+│       ├── proxymist.py      # 网页爬取
+│       ├── zdaye.py          # 网页爬取
+│       └── openclaw.py       # 统计收集（非代理）
+├── proxy_pool/               # 核心功能：验证、存储、读取
+├── mcp_server.py             # MCP Server
+└── skill/SKILL.md            # Kimi Skill
 ```
 
-或者直接用 `--break-system-packages`（不推荐）：
+## 快速开始
+
+### 1. 收集 IP
 
 ```bash
-pip install -e . --break-system-packages
+# 收集 100 个新 IP 到 proxy_pool.json
+python3 scripts/fetch_all.py --target 100
+
+# 只使用指定源
+python3 scripts/fetch_all.py --target 100 --sources scdn,proxymist
+
+# 指定 scdn 协议和国家
+python3 scripts/fetch_all.py --target 100 --protocol http --country-code US
 ```
 
-## 命令行
-
-安装后使用 `proxy-pool` 命令：
+### 2. 验证 IP
 
 ```bash
-# 获取并验证 10 个 http 代理，保存到 proxy_pool.json
-proxy-pool -c 10 -t 10
-
-# 获取 5 个中国 HTTPS 代理
-proxy-pool -p https --country-code CN -c 5
-
-# 获取 3 个 SOCKS5 代理
-proxy-pool -p socks5 -c 3
-
-# 获取任意类型代理（protocol=all）
-proxy-pool -p all -c 10
-
-# 快速获取 20 个代理（不验证）
-proxy-pool -c 20 -q
-
-# 保存为 txt
-proxy-pool -c 10 -f txt -o proxies.txt
+python3 -m proxy_pool.cli verify
 ```
 
-不安装也可直接运行：
+### 3. 查看 IP 列表
 
 ```bash
-python3 -m proxy_pool.cli -c 5
+python3 -m proxy_pool.cli list
 ```
 
-### 参数说明
+## 新增信息源
 
-| 参数 | 说明 |
-|------|------|
-| `-p, --protocol` | 协议：`http`、`https`、`socks4`、`socks5`、`all`（默认 http） |
-| `-c, --count` | 获取数量，1-20（默认 5） |
-| `--country-code` | ISO 3166-1 两位国家代码，如 `CN`、`US` |
-| `-t, --timeout` | 验证超时秒数 |
-| `-o, --output` | 输出文件路径 |
-| `-f, --format` | 输出格式：`json`（默认）、`txt` |
-| `-q, --quick` | 快速模式，不验证 |
-| `--save-all` | 保存所有获取到的代理 |
-| `--provider` | 指定代理提供商名称 |
-
-## 扩展代理源
-
-在 `proxy_pool/providers/` 下新建模块，继承 `BaseProvider` 并实现 `fetch` 方法，然后在 `proxy_pool/providers/__init__.py` 中注册即可。
-
-示例结构：
+在 `scripts/sources/` 下新建一个 `.py` 文件，实现 `fetch(limit)` 函数，返回 `ip:port` 列表：
 
 ```python
-# proxy_pool/providers/my_source.py
-from .base import BaseProvider
+# scripts/sources/my_source.py
+import requests
 
-class MySourceProvider(BaseProvider):
-    name = "my_source"
-    default_api_url = "https://example.com/api"
+URL = "https://example.com/proxies"
 
-    def fetch(self, protocol="http", count=5, country_code=None):
-        # 实现获取逻辑
-        return ["1.2.3.4:8080"]
+
+def fetch(limit=20):
+    resp = requests.get(URL, timeout=15)
+    return ["1.2.3.4:8080", "5.6.7.8:3128"]
 ```
 
-## 作为 Python 模块
+然后在 `scripts/fetch_all.py` 的 `SOURCES` 字典中注册：
+
+```python
+from scripts.sources import my_source
+
+SOURCES = {
+    ...
+    "my_source": my_source,
+}
+```
+
+## CLI
 
 ```bash
-python3 -m proxy_pool.cli -c 5
+# 收集
+python3 -m proxy_pool.cli collect --target 100
+
+# 验证
+python3 -m proxy_pool.cli verify
+
+# 列出
+python3 -m proxy_pool.cli list --json
 ```
 
 ## MCP Server
-
-以 stdio 方式启动：
 
 ```bash
 python3 mcp_server.py
 ```
 
 暴露工具：
-- `fetch_proxies`：从 API 拉取代理
-- `collect_proxies`：从多个源聚合指定数量的新唯一 IP
-- `scrape_proxies`：从网页抓取代理并合并到本地 JSON
-- `check_proxies`：验证代理可用性
-- `save_proxies`：保存代理到文件
-- `load_proxies`：读取本地代理文件
+- `collect_proxies`：收集 IP
+- `verify_proxies`：验证本地池
+- `load_proxies`：读取本地池
 
 ### MCP JSON 配置
-
-标准 MCP 配置格式如下：
-
-注册新代理源后，可通过 `--provider` 参数或 MCP 的 `provider` 字段切换源。
-
-#### 方式一：虚拟环境安装后调用（推荐）
-
-```json
-{
-  "mcpServers": {
-    "proxy-pool": {
-      "command": "/home/kali/proxy_pool_project/.venv/bin/proxy-pool-mcp"
-    }
-  }
-}
-```
-
-#### 方式二：不安装，直接指定脚本
 
 ```json
 {
@@ -142,89 +114,10 @@ python3 mcp_server.py
 }
 ```
 
-## 聚合收集模式
+## 关于 openclaw
 
-从所有可用源（API + 网页）收集 **N 个新的唯一 IP**，自动去重后保存到 `proxy_pool.json`：
-
-```bash
-# 收集 100 个新 IP
-python3 -m proxy_pool.cli --collect 100
-
-# 只使用指定源
-python3 -m proxy_pool.cli --collect 100 --sources scdn,proxymist
-
-# 指定协议和国家
-python3 -m proxy_pool.cli --collect 100 -p http --country-code US
-```
-
-程序会依次尝试各个源，直到收集够目标数量或源耗尽。
-
-## 读取本地池
-
-```python
-from proxy_pool.storage import load_ips
-
-ips = load_ips("proxy_pool.json")
-print(ips)
-```
-
-## 网页抓取模式
-
-从免费代理网站直接爬取 IP 并**合并**到本地 JSON 池（`proxy_pool.json`）：
+`scripts/sources/openclaw.py` 用于从 `https://openclaw.allegro.earth/` 收集暴露实例 IP:端口，**仅用于统计/安全研究，不作为代理使用**。
 
 ```bash
-# 爬取所有内置网页源
-python3 -m proxy_pool.cli --scrape
-
-# 只爬 proxymist
-python3 -m proxy_pool.cli --scrape --sources proxymist
-
-# 爬取并验证
-python3 -m proxy_pool.cli --scrape --verify
-
-# 每个源最多 10 条
-python3 -m proxy_pool.cli --scrape --limit 10
-```
-
-当前内置网页源：`proxymist`、`zdaye`。
-
-> 注意：`https://openclaw.allegro.earth/` 不是代理列表网站，而是暴露的 OpenClaw 实例监控面板，**不适合作为代理源**。
-> 如需收集该站点 IP 用于统计/安全研究，见下方 `scripts/collect_openclaw_stats.py`。
-
-## 统计：收集 OpenClaw 暴露实例
-
-`scripts/collect_openclaw_stats.py` 用于从 `https://openclaw.allegro.earth/` 收集暴露实例的 IP:端口，**仅用于统计或安全研究，不作为代理使用**。
-
-```bash
-# 抓取前 10 页
-python3 scripts/collect_openclaw_stats.py --pages 10 --delay 2
-
-# 抓取全部 10000+ 页（耗时较长，建议后台运行）
-python3 scripts/collect_openclaw_stats.py --pages 10062 --delay 1
-
-# 随机采样 100 条
-python3 scripts/collect_openclaw_stats.py --pages 100 --sample 100
-```
-
-输出文件：`openclaw_stats.json`，格式为 `{"source": "...", "total_ips": N, "ips": ["ip:port", ...]}`。
-
-### 各客户端配置位置
-
-- **Claude Desktop**: `~/Library/Application Support/Claude/claude_desktop_config.json`
-- **VS Code (Cline / Roo)**: 插件 MCP 设置中粘贴 JSON
-- **Kimi Code CLI**: MCP 设置中添加 `proxy-pool` server
-
-## 输出格式
-
-默认保存为 JSON 字典，key 为 `IP:port`，value 包含协议、延迟、状态码、更新时间：
-
-```json
-{
-  "1.2.3.4:8080": {
-    "protocol": "http",
-    "latency_ms": 120,
-    "status": 200,
-    "updated_at": "2026-07-14T10:00:00"
-  }
-}
+python3 scripts/fetch_all.py --target 1000 --sources openclaw
 ```

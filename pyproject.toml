@@ -5,18 +5,15 @@ build-backend = "setuptools.build_meta"
 [project]
 name = "proxy-pool"
 version = "0.1.0"
-description = "获取、验证并管理 HTTP/HTTPS/SOCKS4/SOCKS5 代理 IP 池"
+description = "获取、验证并管理代理 IP 池"
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     "requests>=2.25.0",
-    "requests[socks]",
-    "mcp>=1.0.0",
 ]
 
 [project.scripts]
 proxy-pool = "proxy_pool.cli:main"
-proxy-pool-mcp = "mcp_server:main"
 
 [tool.setuptools.packages.find]
 where = ["."]
