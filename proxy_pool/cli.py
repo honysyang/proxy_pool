@@ -13,7 +13,7 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
 
 
-def collect_ips(target, sources, output, protocol, country_code):
+def collect_ips(target, sources, output, protocol, country_code, fresh):
     """调用 scripts/fetch_all.py 收集 IP。"""
     cmd = [
         "python3", FETCH_ALL,
@@ -25,6 +25,8 @@ def collect_ips(target, sources, output, protocol, country_code):
         cmd.extend(["--sources", sources])
     if country_code:
         cmd.extend(["--country-code", country_code])
+    if fresh:
+        cmd.append("--fresh")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -57,17 +59,6 @@ def verify_pool(output, timeout):
     return working
 
 
-def output_pool(output, json_format):
-    """输出本地池中的 IP。"""
-    ips = load_ips(output)
-    if json_format:
-        print(json.dumps(ips, ensure_ascii=False, indent=2))
-    else:
-        for ip in ips:
-            print(ip)
-    print(f"\n[*] 共 {len(ips)} 个 IP")
-
-
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description="Proxy Pool: 自动收集、验证、保存并输出代理 IP"
@@ -80,11 +71,13 @@ def main(argv=None):
     parser.add_argument("-t", "--timeout", type=int, default=8, help="验证超时秒数")
     parser.add_argument("--no-verify", action="store_true", help="收集后跳过验证")
     parser.add_argument("--no-save", action="store_true", help="不保存到文件（仍会临时写入用于验证）")
+    parser.add_argument("--fresh", action="store_true", help="清空旧池子，重新收集")
+    parser.add_argument("--output-count", type=int, default=None, help="最终只输出指定数量的 IP")
     parser.add_argument("--json", action="store_true", help="以 JSON 数组格式输出")
     args = parser.parse_args(argv)
 
     # 1. 收集
-    collect_ips(args.target, args.sources, args.output, args.protocol, args.country_code)
+    collect_ips(args.target, args.sources, args.output, args.protocol, args.country_code, args.fresh)
 
     # 2. 验证（可选）
     if not args.no_verify:
@@ -92,7 +85,20 @@ def main(argv=None):
 
     # 3. 输出
     print("\n[*] 当前 IP 池：")
-    output_pool(args.output, args.json)
+    ips = load_ips(args.output)
+    if args.output_count is not None:
+        ips = ips[:args.output_count]
+
+    if args.json:
+        print(json.dumps(ips, ensure_ascii=False, indent=2))
+    else:
+        for ip in ips:
+            print(ip)
+    print(f"\n[*] 共 {len(ips)} 个 IP")
+
+    if args.output_count is not None:
+        total = len(load_ips(args.output))
+        print(f"[*] 池子实际总计: {total} 个 IP")
 
     # 4. 清理（如果用户不想保存）
     if args.no_save and os.path.exists(args.output):

@@ -38,10 +38,10 @@ def save_pool(path, pool):
         json.dump(pool, f, ensure_ascii=False, indent=2)
 
 
-def collect(target=100, sources=None, output="proxy_pool.json", protocol="http", country_code=None):
+def collect(target=100, sources=None, output="proxy_pool.json", protocol="http", country_code=None, fresh=False):
     """从指定源收集目标数量的新唯一 IP。"""
     sources = sources or list(SOURCES.keys())
-    pool = load_pool(output)
+    pool = {} if fresh else load_pool(output)
     existing = set(pool.keys())
 
     collected = 0
@@ -103,6 +103,7 @@ def main():
     parser.add_argument("-o", "--output", default="proxy_pool.json", help="输出文件路径")
     parser.add_argument("-p", "--protocol", default="http", help="scdn 源协议参数")
     parser.add_argument("--country-code", default=None, help="scdn 源国家代码参数")
+    parser.add_argument("--fresh", action="store_true", help="清空旧池子，重新收集")
     args = parser.parse_args()
 
     sources = args.sources.split(",") if args.sources else None
@@ -112,6 +113,7 @@ def main():
         output=args.output,
         protocol=args.protocol,
         country_code=args.country_code,
+        fresh=args.fresh,
     )
 
     print(f"[*] 目标: {result['target']}，本次新增: {result['collected']}，池子总计: {result['total']}")

@@ -34,6 +34,12 @@ python3 -m pytest tests/ -q
 # 一键：收集 -> 验证 -> 保存 -> 输出
 python3 -m proxy_pool.cli
 
+# 重新生成池子
+python3 -m proxy_pool.cli --fresh
+
+# 只输出前 10 个
+python3 -m proxy_pool.cli --output-count 10
+
 # MCP Server
 python3 mcp_server.py
 ```
