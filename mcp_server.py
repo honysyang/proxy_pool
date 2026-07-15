@@ -35,6 +35,7 @@ async def list_tools() -> list[Tool]:
                     "protocol": {"type": "string", "default": "http"},
                     "country_code": {"type": "string"},
                     "no_verify": {"type": "boolean", "default": False},
+                    "use_pool_proxy": {"type": "boolean", "default": False, "description": "是否使用池子中的随机代理进行收集"},
                 },
             },
         ),
@@ -60,6 +61,8 @@ async def list_tools() -> list[Tool]:
                     "output_file": {"type": "string", "default": "proxy_pool.json"},
                     "protocol": {"type": "string", "default": "http"},
                     "country_code": {"type": "string"},
+                    "use_pool_proxy": {"type": "boolean", "default": False, "description": "是否使用池子中的随机代理进行收集补足"},
+                    "json_output": {"type": "boolean", "default": False, "description": "是否以 JSON 数组格式输出"},
                 },
                 "required": ["output_count"],
             },
@@ -119,6 +122,8 @@ def _collect(arguments: dict):
         cmd.extend(["--country-code", arguments["country_code"]])
     if arguments.get("no_verify"):
         cmd.append("--no-verify")
+    if arguments.get("use_pool_proxy"):
+        cmd.append("--use-pool-proxy")
     return _run_cli(cmd)
 
 
@@ -138,6 +143,10 @@ def _output(arguments: dict):
         cmd.extend(["--sources", arguments["sources"]])
     if arguments.get("country_code"):
         cmd.extend(["--country-code", arguments["country_code"]])
+    if arguments.get("use_pool_proxy"):
+        cmd.append("--use-pool-proxy")
+    if arguments.get("json_output"):
+        cmd.append("--json")
     return _run_cli(cmd)
 
 

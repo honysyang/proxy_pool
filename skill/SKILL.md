@@ -26,7 +26,10 @@ proxy_pool_project/
 │   └── sources/              # IP 提取源
 ├── proxy_pool/
 │   └── cli.py                # 对外统一 CLI
-└── mcp_server.py
+├── demo/                     # 测试/验证示例
+├── skill/
+│   └── SKILL.md              # 本文件
+└── mcp_server.py             # MCP Server
 ```
 
 ## 核心用法
@@ -39,6 +42,9 @@ python3 -m proxy_pool.cli
 
 # 收集 50 个
 python3 -m proxy_pool.cli --target 50
+
+# 使用池子中的随机代理去收集（失败自动回退直连）
+python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 
 # 刷新池子（移除无效 IP）
 python3 -m proxy_pool.cli --fresh
@@ -64,18 +70,67 @@ import requests
 URL = "https://example.com/proxies"
 
 
-def fetch(limit=20):
-    resp = requests.get(URL, timeout=15)
+def _proxies(proxy):
+    if not proxy:
+        return None
+    if "://" not in proxy:
+        proxy = f"http://{proxy}"
+    return {"http": proxy, "https": proxy}
+
+
+def fetch(limit=20, proxy=None):
+    resp = requests.get(URL, proxies=_proxies(proxy), timeout=15)
+    resp.raise_for_status()
     return ["1.2.3.4:8080", "5.6.7.8:3128"]
 ```
 
-## MCP 工具
+## 验证代理是否隐藏真实 IP
+
+```bash
+# 1. 确保池子里有代理
+python3 -m proxy_pool.cli --target 20 --sources scdn --no-verify
+
+# 2. 用公开 echo 服务验证
+python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
+```
+
+如果代理返回的 `origin` 与直连不同，说明本机真实 IP 已被隐藏。
+
+## MCP 配置
+
+```json
+{
+  "mcpServers": {
+    "proxy-pool": {
+      "command": "python3",
+      "args": [
+        "/home/kali/proxy_pool_project/mcp_server.py"
+      ],
+      "env": {}
+    }
+  }
+}
+```
+
+> 把路径替换为本机实际路径。
+
+### MCP 工具
 
 - `collect_proxies`：收集 IP
 - `fresh_proxies`：验证本地池
 - `output_proxies`：从本地池输出 N 个 IP（不够则收集补足）
 - `load_proxies`：读取本地池
 
-## 注意
+### 调用示例
 
-`scripts/sources/openclaw.py` 仅用于统计/安全研究，不作为代理源。
+```json
+{
+  "name": "collect_proxies",
+  "arguments": {
+    "target_count": 50,
+    "sources": "scdn",
+    "protocol": "http",
+    "use_pool_proxy": false
+  }
+}
+```
