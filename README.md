@@ -1,53 +1,68 @@
 # Proxy Pool
 
-获取、验证并管理代理 IP 池。所有 IP 提取源统一放在 `scripts/sources/` 下，由 `scripts/fetch_all.py` 统一调度。
+自动收集、验证、保存并输出代理 IP 池。
+
+所有 IP 提取源统一放在 `scripts/sources/` 下，由 `scripts/fetch_all.py` 调度，CLI 对外提供一键化操作。
 
 ## 项目结构
 
 ```text
 proxy_pool_project/
 ├── scripts/
-│   ├── fetch_all.py          # 统一调度入口
+│   ├── fetch_all.py          # 统一调度
 │   └── sources/              # IP 提取源
-│       ├── scdn.py           # API 提取
-│       ├── proxymist.py      # 网页爬取
-│       ├── zdaye.py          # 网页爬取
-│       └── openclaw.py       # 统计收集（非代理）
-├── proxy_pool/               # 核心功能：验证、存储、读取
-├── mcp_server.py             # MCP Server
-└── skill/SKILL.md            # Kimi Skill
+│       ├── scdn.py
+│       ├── proxymist.py
+│       ├── zdaye.py
+│       └── openclaw.py
+├── proxy_pool/
+│   ├── cli.py                # 对外统一 CLI
+│   ├── checker.py            # 验证
+│   └── storage.py            # 存储/读取
+└── mcp_server.py             # MCP Server
 ```
 
-## 快速开始
-
-### 1. 收集 IP
+## 一键使用
 
 ```bash
-# 收集 100 个新 IP 到 proxy_pool.json
-python3 scripts/fetch_all.py --target 100
+cd proxy_pool_project
+
+# 默认：收集 100 个 IP -> 验证 -> 保存 -> 输出
+python3 -m proxy_pool.cli
+
+# 收集 50 个 IP
+python3 -m proxy_pool.cli --target 50
 
 # 只使用指定源
-python3 scripts/fetch_all.py --target 100 --sources scdn,proxymist
+python3 -m proxy_pool.cli --sources scdn,proxymist
 
-# 指定 scdn 协议和国家
-python3 scripts/fetch_all.py --target 100 --protocol http --country-code US
+# JSON 格式输出
+python3 -m proxy_pool.cli --json
+
+# 跳过验证
+python3 -m proxy_pool.cli --no-verify
 ```
 
-### 2. 验证 IP
+## CLI 参数
 
-```bash
-python3 -m proxy_pool.cli verify
-```
-
-### 3. 查看 IP 列表
-
-```bash
-python3 -m proxy_pool.cli list
-```
+| 参数 | 说明 |
+|------|------|
+| `--target` | 目标收集数量（默认 100） |
+| `--sources` | 指定源，逗号分隔 |
+| `-o, --output` | 输出文件（默认 proxy_pool.json） |
+| `-p, --protocol` | scdn 协议参数 |
+| `--country-code` | scdn 国家代码参数 |
+| `-t, --timeout` | 验证超时秒数 |
+| `--no-verify` | 跳过验证 |
+| `--no-save` | 不保存文件 |
+| `--json` | JSON 数组格式输出 |
 
 ## 新增信息源
 
-在 `scripts/sources/` 下新建一个 `.py` 文件，实现 `fetch(limit)` 函数，返回 `ip:port` 列表：
+1. 在 `scripts/sources/` 新建 `.py`，实现 `fetch(limit)` 函数
+2. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
+
+示例：
 
 ```python
 # scripts/sources/my_source.py
@@ -61,28 +76,12 @@ def fetch(limit=20):
     return ["1.2.3.4:8080", "5.6.7.8:3128"]
 ```
 
-然后在 `scripts/fetch_all.py` 的 `SOURCES` 字典中注册：
+## 读取 IP 池
 
 ```python
-from scripts.sources import my_source
+from proxy_pool.storage import load_ips
 
-SOURCES = {
-    ...
-    "my_source": my_source,
-}
-```
-
-## CLI
-
-```bash
-# 收集
-python3 -m proxy_pool.cli collect --target 100
-
-# 验证
-python3 -m proxy_pool.cli verify
-
-# 列出
-python3 -m proxy_pool.cli list --json
+ips = load_ips("proxy_pool.json")
 ```
 
 ## MCP Server
@@ -96,28 +95,6 @@ python3 mcp_server.py
 - `verify_proxies`：验证本地池
 - `load_proxies`：读取本地池
 
-### MCP JSON 配置
-
-```json
-{
-  "mcpServers": {
-    "proxy-pool": {
-      "command": "python3",
-      "args": [
-        "/home/kali/proxy_pool_project/mcp_server.py"
-      ],
-      "env": {
-        "PYTHONPATH": "/home/kali/proxy_pool_project"
-      }
-    }
-  }
-}
-```
-
 ## 关于 openclaw
 
-`scripts/sources/openclaw.py` 用于从 `https://openclaw.allegro.earth/` 收集暴露实例 IP:端口，**仅用于统计/安全研究，不作为代理使用**。
-
-```bash
-python3 scripts/fetch_all.py --target 1000 --sources openclaw
-```
+`scripts/sources/openclaw.py` 仅用于统计/安全研究，不作为代理源。

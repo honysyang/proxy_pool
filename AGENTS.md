@@ -2,19 +2,24 @@
 
 ## 项目概述
 
-极简代理池项目：
+极简代理池项目，对外只通过 CLI 提供统一入口：
 
-- `scripts/sources/*.py`：每个文件是一个 IP 提取源，必须实现 `fetch(limit)` 函数。
-- `scripts/fetch_all.py`：统一调度所有源，收集、去重、保存到 JSON。
-- `proxy_pool/`：核心功能包，只负责验证、存储、读取。
-- `mcp_server.py`：MCP Server，暴露收集/验证/读取接口。
-- `skill/SKILL.md`：Kimi Skill。
+```bash
+python3 -m proxy_pool.cli
+```
+
+内部流程：
+1. `proxy_pool/cli.py` 调用 `scripts/fetch_all.py`
+2. `scripts/fetch_all.py` 调度 `scripts/sources/*.py` 收集 IP
+3. `proxy_pool/checker.py` 验证代理可用性
+4. `proxy_pool/storage.py` 保存/读取 JSON 池
+5. CLI 输出最终 IP 列表
 
 ## 新增信息源
 
-1. 在 `scripts/sources/` 新建 `.py` 文件
+1. 在 `scripts/sources/` 新建 `.py`
 2. 实现 `fetch(limit=20) -> list[str]`，返回 `ip:port` 列表
-3. 在 `scripts/fetch_all.py` 的 `SOURCES` 字典中注册
+3. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
 
 ## 测试
 
@@ -26,13 +31,8 @@ python3 -m pytest tests/ -q
 ## 运行
 
 ```bash
-# 收集 100 个 IP
-python3 scripts/fetch_all.py --target 100
-
-# CLI
-python3 -m proxy_pool.cli collect --target 100
-python3 -m proxy_pool.cli verify
-python3 -m proxy_pool.cli list
+# 一键：收集 -> 验证 -> 保存 -> 输出
+python3 -m proxy_pool.cli
 
 # MCP Server
 python3 mcp_server.py

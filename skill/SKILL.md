@@ -1,16 +1,16 @@
 ---
 name: proxy-pool
-description: 当用户需要收集、验证、读取代理 IP 池，或向代理池新增信息源时，使用本项目。
+description: 当用户需要获取代理 IP 池时，使用本项目的 CLI 一键收集、验证、保存并输出 IP。
 ---
 
 # Proxy Pool
 
-极简代理池工具：所有 IP 提取源放在 `scripts/sources/`，由 `scripts/fetch_all.py` 统一调度，结果保存到 `proxy_pool.json`。
+对外只通过 CLI 提供统一入口，自动完成：收集 → 验证 → 保存 → 输出 IP 池。
 
 ## 何时使用
 
-- 用户说“收集代理”、“获取 IP”、“验证代理”、“读取本地池”、“新增代理源”等。
-- 需要从多个来源聚合 IP:端口。
+- 用户说“给我代理池”、“获取 IP”、“爬代理”、“验证代理”等。
+- 需要从多个来源聚合 IP:端口并返回可用列表。
 
 ## 项目结构
 
@@ -19,54 +19,33 @@ proxy_pool_project/
 ├── scripts/
 │   ├── fetch_all.py          # 统一调度
 │   └── sources/              # IP 提取源
-│       ├── scdn.py
-│       ├── proxymist.py
-│       ├── zdaye.py
-│       └── openclaw.py
-├── proxy_pool/               # 验证、存储、读取
-├── mcp_server.py
-└── skill/SKILL.md
+├── proxy_pool/
+│   └── cli.py                # 对外统一 CLI
+└── mcp_server.py
 ```
 
 ## 核心用法
 
-### 收集 IP
-
 ```bash
 cd proxy_pool_project
 
-# 收集 100 个新 IP
-python3 scripts/fetch_all.py --target 100
+# 一键获取 100 个代理 IP（收集、验证、保存、输出）
+python3 -m proxy_pool.cli
 
-# 只使用指定源
-python3 scripts/fetch_all.py --target 100 --sources scdn,proxymist
+# 获取 50 个
+python3 -m proxy_pool.cli --target 50
 
-# CLI 方式
-python3 -m proxy_pool.cli collect --target 100
-```
+# 指定源
+python3 -m proxy_pool.cli --sources scdn,proxymist
 
-### 验证本地池
-
-```bash
-python3 -m proxy_pool.cli verify
-```
-
-### 读取本地池
-
-```bash
-python3 -m proxy_pool.cli list --json
-```
-
-```python
-from proxy_pool.storage import load_ips
-ips = load_ips("proxy_pool.json")
+# JSON 输出
+python3 -m proxy_pool.cli --json
 ```
 
 ## 新增信息源
 
-1. 在 `scripts/sources/` 新建 `.py` 文件
-2. 实现 `fetch(limit=20)`，返回 `ip:port` 列表
-3. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
+1. 在 `scripts/sources/` 新建 `.py`，实现 `fetch(limit)`
+2. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
 
 示例：
 
@@ -84,9 +63,9 @@ def fetch(limit=20):
 
 ## MCP 工具
 
-- `collect_proxies`：收集 IP 到本地池
+- `collect_proxies`：收集 IP
 - `verify_proxies`：验证本地池
-- `load_proxies`：读取本地池 IP 列表
+- `load_proxies`：读取本地池
 
 ## 注意
 
