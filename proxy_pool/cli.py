@@ -72,9 +72,15 @@ def main(argv=None):
     parser.add_argument("--no-verify", action="store_true", help="收集后跳过验证")
     parser.add_argument("--no-save", action="store_true", help="不保存到文件（仍会临时写入用于验证）")
     parser.add_argument("--fresh", action="store_true", help="清空旧池子，重新收集")
-    parser.add_argument("--output-count", type=int, default=None, help="最终只输出指定数量的 IP")
+    parser.add_argument("--output-count", type=int, default=None, help="快速分配 N 个 IP（自动跳过验证）")
     parser.add_argument("--json", action="store_true", help="以 JSON 数组格式输出")
     args = parser.parse_args(argv)
+
+    # 快速分配模式：--output-count N 等价于收集 N 个并直接输出，不验证
+    if args.output_count is not None:
+        args.no_verify = True
+        if args.target == 100:  # 用户未显式指定 target 时，按 output-count 收集
+            args.target = args.output_count
 
     # 1. 收集
     collect_ips(args.target, args.sources, args.output, args.protocol, args.country_code, args.fresh)
@@ -94,11 +100,12 @@ def main(argv=None):
     else:
         for ip in ips:
             print(ip)
-    print(f"\n[*] 共 {len(ips)} 个 IP")
 
-    if args.output_count is not None:
-        total = len(load_ips(args.output))
-        print(f"[*] 池子实际总计: {total} 个 IP")
+    total = len(load_ips(args.output))
+    if args.output_count is not None and args.output_count < total:
+        print(f"\n[*] 输出 {len(ips)} 个 IP（池子总计 {total} 个）")
+    else:
+        print(f"\n[*] 共 {len(ips)} 个 IP")
 
     # 4. 清理（如果用户不想保存）
     if args.no_save and os.path.exists(args.output):

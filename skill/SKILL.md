@@ -44,8 +44,8 @@ python3 -m proxy_pool.cli --json
 # 重新生成池子（清空旧数据）
 python3 -m proxy_pool.cli --fresh
 
-# 收集 100 个，但只输出前 10 个
-python3 -m proxy_pool.cli --target 100 --output-count 10
+# 快速分配 10 个 IP（不验证）
+python3 -m proxy_pool.cli --output-count 10
 ```
 
 ## 新增信息源

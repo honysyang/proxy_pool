@@ -45,8 +45,8 @@ python3 -m proxy_pool.cli --no-verify
 # 清空旧池子，重新收集
 python3 -m proxy_pool.cli --target 50 --fresh
 
-# 收集 100 个，但只输出前 10 个
-python3 -m proxy_pool.cli --target 100 --output-count 10
+# 快速分配 10 个 IP（不验证，直接输出）
+python3 -m proxy_pool.cli --output-count 10
 ```
 
 ## CLI 参数
@@ -62,7 +62,7 @@ python3 -m proxy_pool.cli --target 100 --output-count 10
 | `--no-verify` | 跳过验证 |
 | `--no-save` | 不保存文件 |
 | `--fresh` | 清空旧池子，重新收集 |
-| `--output-count` | 最终只输出指定数量的 IP |
+| `--output-count` | 快速分配 N 个 IP，自动跳过验证 |
 | `--json` | JSON 数组格式输出 |
 
 ## 新增信息源
