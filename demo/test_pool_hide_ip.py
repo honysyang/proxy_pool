@@ -41,13 +41,21 @@ def fetch_ip(url, proxies, timeout=15):
 
 def main():
     parser = argparse.ArgumentParser(description="验证代理池是否隐藏了本机真实 IP")
-    parser.add_argument("--pool", default="proxy_pool.json", help="代理池 JSON 文件路径")
+    parser.add_argument("--pool", default=None, help="代理池 JSON 文件路径（默认优先使用项目根目录的 proxy_pool.json）")
     parser.add_argument("--target-url", default="https://httpbin.org/ip", help="会回显访问者 IP 的目标 URL")
     parser.add_argument("--count", type=int, default=3, help="使用池子代理测试的次数")
     parser.add_argument("--timeout", type=int, default=15, help="每次请求超时秒数")
     args = parser.parse_args()
 
+    # 解析池子路径：默认用项目根目录的 proxy_pool.json；
+    # 用户传相对路径且当前目录不存在时，也尝试从项目根目录找
+    pool_path = args.pool or os.path.join(ROOT, "proxy_pool.json")
+    if not os.path.isabs(pool_path) and not os.path.exists(pool_path):
+        fallback = os.path.join(ROOT, pool_path)
+        if os.path.exists(fallback):
+            pool_path = fallback
     print(f"[*] 目标 URL: {args.target_url}")
+    print(f"[*] 使用池子: {os.path.abspath(pool_path)}\n")
 
     # 1. 先测一次直连，得到本机 IP
     try:
@@ -58,7 +66,7 @@ def main():
 
     # 2. 从池子中随机选代理测试
     for i in range(1, args.count + 1):
-        proxy = get_random_proxy(args.pool)
+        proxy = get_random_proxy(pool_path)
         if not proxy:
             print(f"[{i}] 池子为空，跳过")
             continue
