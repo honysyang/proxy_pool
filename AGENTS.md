@@ -2,18 +2,18 @@
 
 ## 项目概述
 
-极简代理池项目，对外只通过 CLI 提供统一入口：
+极简代理池项目，对外只通过 CLI 提供统一入口，池子文件为 JSON。
 
-```bash
-python3 -m proxy_pool.cli
-```
+CLI 三种核心操作：
+- `--target N`：收集 N 个 IP 到池子（默认验证）
+- `--fresh`：验证现有池子，移除无效 IP
+- `--output-count N`：从池子输出 N 个 IP，不够则自动收集补足
 
 内部流程：
-1. `proxy_pool/cli.py` 调用 `scripts/fetch_all.py`
-2. `scripts/fetch_all.py` 调度 `scripts/sources/*.py` 收集 IP
-3. `proxy_pool/checker.py` 验证代理可用性
+1. `proxy_pool/cli.py` 解析参数
+2. 调用 `scripts/fetch_all.py` 收集 IP
+3. `proxy_pool/checker.py` 验证代理
 4. `proxy_pool/storage.py` 保存/读取 JSON 池
-5. CLI 输出最终 IP 列表
 
 ## 新增信息源
 
@@ -34,10 +34,10 @@ python3 -m pytest tests/ -q
 # 一键：收集 -> 验证 -> 保存 -> 输出
 python3 -m proxy_pool.cli
 
-# 重新生成池子
+# 刷新池子
 python3 -m proxy_pool.cli --fresh
 
-# 只输出前 10 个
+# 快速输出 10 个
 python3 -m proxy_pool.cli --output-count 10
 
 # MCP Server

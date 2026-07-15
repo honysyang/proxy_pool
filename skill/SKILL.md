@@ -1,16 +1,21 @@
 ---
 name: proxy-pool
-description: 当用户需要获取代理 IP 池时，使用本项目的 CLI 一键收集、验证、保存并输出 IP。
+description: 当用户需要获取代理 IP 池时，使用本项目的 CLI 统一收集、验证、刷新、输出 IP。
 ---
 
 # Proxy Pool
 
-对外只通过 CLI 提供统一入口，自动完成：收集 → 验证 → 保存 → 输出 IP 池。
+对外只通过 CLI 提供统一入口，池子文件为 JSON。
+
+三种核心操作：
+- `--target N`：收集 N 个 IP 到池子（默认验证）
+- `--fresh`：验证并清理现有池子
+- `--output-count N`：从池子输出 N 个 IP，不够则自动收集补足
 
 ## 何时使用
 
-- 用户说“给我代理池”、“获取 IP”、“爬代理”、“验证代理”等。
-- 需要从多个来源聚合 IP:端口并返回可用列表。
+- 用户说“给我代理池”、“获取 IP”、“爬代理”、“验证代理”、“输出 10 个 IP”等。
+- 需要从多个来源聚合 IP:端口。
 
 ## 项目结构
 
@@ -29,23 +34,20 @@ proxy_pool_project/
 ```bash
 cd proxy_pool_project
 
-# 一键获取 100 个代理 IP（收集、验证、保存、输出）
+# 收集 100 个并验证
 python3 -m proxy_pool.cli
 
-# 获取 50 个
+# 收集 50 个
 python3 -m proxy_pool.cli --target 50
 
-# 指定源
-python3 -m proxy_pool.cli --sources scdn,proxymist
-
-# JSON 输出
-python3 -m proxy_pool.cli --json
-
-# 重新生成池子（清空旧数据）
+# 刷新池子（移除无效 IP）
 python3 -m proxy_pool.cli --fresh
 
-# 快速分配 10 个 IP（不验证）
+# 快速输出 10 个 IP（不验证，不够则收集）
 python3 -m proxy_pool.cli --output-count 10
+
+# JSON 输出
+python3 -m proxy_pool.cli --output-count 10 --json
 ```
 
 ## 新增信息源

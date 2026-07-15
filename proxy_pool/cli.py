@@ -1,4 +1,4 @@
-"""统一 CLI 入口：自动收集、验证、保存并输出 IP 池。"""
+"""统一 CLI 入口：收集、验证、刷新、输出代理 IP 池。"""
 
 import argparse
 import json
@@ -13,20 +13,13 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
 
 
-def collect_ips(target, sources, output, protocol, country_code, fresh):
+def collect_ips(target, sources, output, protocol, country_code):
     """调用 scripts/fetch_all.py 收集 IP。"""
-    cmd = [
-        "python3", FETCH_ALL,
-        "--target", str(target),
-        "--output", output,
-        "--protocol", protocol,
-    ]
+    cmd = ["python3", FETCH_ALL, "--target", str(target), "--output", output, "--protocol", protocol]
     if sources:
         cmd.extend(["--sources", sources])
     if country_code:
         cmd.extend(["--country-code", country_code])
-    if fresh:
-        cmd.append("--fresh")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -36,81 +29,105 @@ def collect_ips(target, sources, output, protocol, country_code, fresh):
 
 
 def verify_pool(output, timeout):
-    """验证本地池中的代理。"""
+    """验证本地池中所有代理，移除无效 IP。返回有效 IP 列表。"""
     ips = load_ips(output)
     if not ips:
         print("[*] 池子为空，跳过验证")
         return []
 
     print(f"[*] 开始验证 {len(ips)} 个代理...")
+    pool = {}
     working = []
-    failed = []
+    failed = 0
     for ip in ips:
         pd = {"http": f"http://{ip}"}
         _, latency, status = check_proxy(pd, timeout=timeout)
         if latency is not None:
-            working.append({"proxy": ip, "latency_ms": latency, "status": status})
+            pool[ip] = {"latency_ms": latency, "status": status, "updated_at": datetime_now()}
+            working.append(ip)
             print(f"[OK] {ip:<30} 延迟: {latency:>4}ms 状态码: {status}")
         else:
-            failed.append(ip)
+            failed += 1
             print(f"[FAIL] {ip}")
 
-    print(f"\n[*] 验证完成：{len(working)}/{len(ips)} 可用")
+    save_json(output, pool)
+    print(f"\n[*] 验证完成：{len(working)} 可用，{failed} 已移除")
     return working
 
 
-def main(argv=None):
-    parser = argparse.ArgumentParser(
-        description="Proxy Pool: 自动收集、验证、保存并输出代理 IP"
-    )
-    parser.add_argument("--target", type=int, default=100, help="目标收集数量（默认 100）")
-    parser.add_argument("--sources", default=None, help="指定源，逗号分隔")
-    parser.add_argument("-o", "--output", default="proxy_pool.json", help="输出文件路径")
-    parser.add_argument("-p", "--protocol", default="http", help="scdn 协议参数")
-    parser.add_argument("--country-code", default=None, help="scdn 国家代码参数")
-    parser.add_argument("-t", "--timeout", type=int, default=8, help="验证超时秒数")
-    parser.add_argument("--no-verify", action="store_true", help="收集后跳过验证")
-    parser.add_argument("--no-save", action="store_true", help="不保存到文件（仍会临时写入用于验证）")
-    parser.add_argument("--fresh", action="store_true", help="清空旧池子，重新收集")
-    parser.add_argument("--output-count", type=int, default=None, help="快速分配 N 个 IP（自动跳过验证）")
-    parser.add_argument("--json", action="store_true", help="以 JSON 数组格式输出")
-    args = parser.parse_args(argv)
+def fresh_pool(output, timeout):
+    """刷新池子：验证并移除无效 IP。"""
+    print("[*] 开始刷新池子（验证并移除无效 IP）...")
+    return verify_pool(output, timeout)
 
-    # 快速分配模式：--output-count N 等价于收集 N 个并直接输出，不验证
-    if args.output_count is not None:
-        args.no_verify = True
-        if args.target == 100:  # 用户未显式指定 target 时，按 output-count 收集
-            args.target = args.output_count
 
-    # 1. 收集
-    collect_ips(args.target, args.sources, args.output, args.protocol, args.country_code, args.fresh)
-
-    # 2. 验证（可选）
-    if not args.no_verify:
-        verify_pool(args.output, args.timeout)
-
-    # 3. 输出
-    print("\n[*] 当前 IP 池：")
-    ips = load_ips(args.output)
-    if args.output_count is not None:
-        ips = ips[:args.output_count]
-
-    if args.json:
+def output_ips(ips, json_format):
+    """输出 IP 列表。"""
+    if json_format:
         print(json.dumps(ips, ensure_ascii=False, indent=2))
     else:
         for ip in ips:
             print(ip)
 
-    total = len(load_ips(args.output))
-    if args.output_count is not None and args.output_count < total:
-        print(f"\n[*] 输出 {len(ips)} 个 IP（池子总计 {total} 个）")
-    else:
-        print(f"\n[*] 共 {len(ips)} 个 IP")
 
-    # 4. 清理（如果用户不想保存）
-    if args.no_save and os.path.exists(args.output):
-        os.remove(args.output)
-        print(f"[*] 已清理临时文件: {args.output}")
+def datetime_now():
+    from datetime import datetime
+    return datetime.now().isoformat()
+
+
+def save_json(path, data):
+    os.makedirs(os.path.dirname(os.path.abspath(path)) or ".", exist_ok=True)
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+
+def main(argv=None):
+    parser = argparse.ArgumentParser(description="Proxy Pool: 收集、验证、刷新、输出代理 IP")
+    parser.add_argument("--target", type=int, default=None, help="收集 N 个 IP 到池子（默认验证）")
+    parser.add_argument("--sources", default=None, help="指定源，逗号分隔")
+    parser.add_argument("-o", "--output", default="proxy_pool.json", help="池子文件路径")
+    parser.add_argument("-p", "--protocol", default="http", help="scdn 协议参数")
+    parser.add_argument("--country-code", default=None, help="scdn 国家代码参数")
+    parser.add_argument("-t", "--timeout", type=int, default=8, help="验证超时秒数")
+    parser.add_argument("--no-verify", action="store_true", help="target 收集后跳过验证")
+    parser.add_argument("--fresh", action="store_true", help="验证现有池子，移除无效 IP")
+    parser.add_argument("--output-count", type=int, default=None, help="从池子输出 N 个 IP，不够则直接收集补足（不验证）")
+    parser.add_argument("--json", action="store_true", help="JSON 数组格式输出")
+    args = parser.parse_args(argv)
+
+    # 1. 刷新池子：验证并移除无效 IP
+    if args.fresh:
+        fresh_pool(args.output, args.timeout)
+
+    # 2. 收集 target 个 IP 到池子
+    # 默认行为：没有指定 target、没有 output-count、没有 fresh 时，收集 100 个
+    target = args.target
+    if target is None and args.output_count is None and not args.fresh:
+        target = 100
+
+    if target is not None and target > 0:
+        collect_ips(target, args.sources, args.output, args.protocol, args.country_code)
+        if not args.no_verify:
+            verify_pool(args.output, args.timeout)
+
+    # 3. 输出指定数量 IP，不够则补足
+    if args.output_count is not None:
+        ips = load_ips(args.output)
+        needed = args.output_count - len(ips)
+        if needed > 0:
+            print(f"[*] 池子中仅有 {len(ips)} 个 IP，需要再收集 {needed} 个补足...")
+            collect_ips(needed, args.sources, args.output, args.protocol, args.country_code)
+            ips = load_ips(args.output)
+
+        output_ips(ips[:args.output_count], args.json)
+        print(f"\n[*] 共输出 {min(args.output_count, len(ips))} 个 IP")
+    else:
+        # 没有 output-count 时，默认输出池子全部
+        ips = load_ips(args.output)
+        if ips:
+            print("\n[*] 当前 IP 池：")
+            output_ips(ips, args.json)
+            print(f"\n[*] 共 {len(ips)} 个 IP")
 
 
 if __name__ == "__main__":

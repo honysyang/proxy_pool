@@ -15,7 +15,7 @@ from proxy_pool.checker import check_proxy
 from proxy_pool.storage import load_ips
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
+CLI = os.path.join(BASE_DIR, "proxy_pool", "cli.py")
 
 app = Server("proxy-pool")
 
@@ -25,7 +25,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="collect_proxies",
-            description="收集指定数量的新唯一 IP 到本地 JSON 池",
+            description="收集指定数量的 IP 到本地 JSON 池",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -34,18 +34,34 @@ async def list_tools() -> list[Tool]:
                     "output_file": {"type": "string", "default": "proxy_pool.json"},
                     "protocol": {"type": "string", "default": "http"},
                     "country_code": {"type": "string"},
+                    "no_verify": {"type": "boolean", "default": False},
                 },
             },
         ),
         Tool(
-            name="verify_proxies",
-            description="验证本地 JSON 池中代理的可用性",
+            name="fresh_proxies",
+            description="验证本地 JSON 池，移除无效 IP",
             inputSchema={
                 "type": "object",
                 "properties": {
-                    "input_file": {"type": "string", "default": "proxy_pool.json"},
+                    "output_file": {"type": "string", "default": "proxy_pool.json"},
                     "timeout": {"type": "integer", "default": 8},
                 },
+            },
+        ),
+        Tool(
+            name="output_proxies",
+            description="从本地池输出 N 个 IP，不够则自动收集补足",
+            inputSchema={
+                "type": "object",
+                "properties": {
+                    "output_count": {"type": "integer"},
+                    "sources": {"type": "string", "description": "逗号分隔的源列表"},
+                    "output_file": {"type": "string", "default": "proxy_pool.json"},
+                    "protocol": {"type": "string", "default": "http"},
+                    "country_code": {"type": "string"},
+                },
+                "required": ["output_count"],
             },
         ),
         Tool(
@@ -65,8 +81,10 @@ async def list_tools() -> list[Tool]:
 async def call_tool(name: str, arguments: dict):
     if name == "collect_proxies":
         result = _collect(arguments)
-    elif name == "verify_proxies":
-        result = _verify(arguments)
+    elif name == "fresh_proxies":
+        result = _fresh(arguments)
+    elif name == "output_proxies":
+        result = _output(arguments)
     elif name == "load_proxies":
         result = _load(arguments)
     else:
@@ -74,41 +92,53 @@ async def call_tool(name: str, arguments: dict):
     return [TextContent(type="text", text=json.dumps(result, ensure_ascii=False, indent=2))]
 
 
+def _build_cli_cmd(args_list):
+    return ["python3", CLI] + args_list
+
+
+def _run_cli(args_list):
+    cmd = _build_cli_cmd(args_list)
+    env = os.environ.copy()
+    env["PYTHONPATH"] = BASE_DIR
+    result = subprocess.run(cmd, capture_output=True, text=True, env=env)
+    if result.returncode != 0:
+        return {"status": "error", "message": result.stderr or result.stdout}
+    return {"status": "ok", "output": result.stdout}
+
+
 def _collect(arguments: dict):
+    output = arguments.get("output_file", "proxy_pool.json")
     cmd = [
-        "python3", FETCH_ALL,
         "--target", str(arguments.get("target_count", 100)),
-        "--output", arguments.get("output_file", "proxy_pool.json"),
+        "--output", output,
         "--protocol", arguments.get("protocol", "http"),
     ]
     if arguments.get("sources"):
         cmd.extend(["--sources", arguments["sources"]])
     if arguments.get("country_code"):
         cmd.extend(["--country-code", arguments["country_code"]])
-
-    try:
-        subprocess.run(cmd, check=True, capture_output=True, text=True)
-        return {"status": "ok", "message": "收集完成"}
-    except subprocess.CalledProcessError as e:
-        return {"status": "error", "message": e.stderr or e.stdout}
+    if arguments.get("no_verify"):
+        cmd.append("--no-verify")
+    return _run_cli(cmd)
 
 
-def _verify(arguments: dict):
-    input_file = arguments.get("input_file", "proxy_pool.json")
-    timeout = arguments.get("timeout", 8)
-    ips = load_ips(input_file)
+def _fresh(arguments: dict):
+    output = arguments.get("output_file", "proxy_pool.json")
+    return _run_cli(["--fresh", "--output", output, "--timeout", str(arguments.get("timeout", 8))])
 
-    working = []
-    failed = []
-    for ip in ips:
-        pd = {"http": f"http://{ip}"}
-        _, latency, status = check_proxy(pd, timeout=timeout)
-        if latency is not None:
-            working.append({"proxy": ip, "latency_ms": latency, "status": status})
-        else:
-            failed.append(ip)
 
-    return {"total": len(ips), "working": working, "failed": failed}
+def _output(arguments: dict):
+    output = arguments.get("output_file", "proxy_pool.json")
+    cmd = [
+        "--output-count", str(arguments["output_count"]),
+        "--output", output,
+        "--protocol", arguments.get("protocol", "http"),
+    ]
+    if arguments.get("sources"):
+        cmd.extend(["--sources", arguments["sources"]])
+    if arguments.get("country_code"):
+        cmd.extend(["--country-code", arguments["country_code"]])
+    return _run_cli(cmd)
 
 
 def _load(arguments: dict):

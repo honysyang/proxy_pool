@@ -1,8 +1,8 @@
 # Proxy Pool
 
-自动收集、验证、保存并输出代理 IP 池。
+自动收集、验证、保存并输出代理 IP 池。池子文件格式为 JSON。
 
-所有 IP 提取源统一放在 `scripts/sources/` 下，由 `scripts/fetch_all.py` 调度，CLI 对外提供一键化操作。
+所有 IP 提取源统一放在 `scripts/sources/` 下，由 `scripts/fetch_all.py` 调度，CLI 对外提供统一操作。
 
 ## 项目结构
 
@@ -18,7 +18,7 @@ proxy_pool_project/
 ├── proxy_pool/
 │   ├── cli.py                # 对外统一 CLI
 │   ├── checker.py            # 验证
-│   └── storage.py            # 存储/读取
+│   └── storage.py            # JSON 存储/读取
 └── mcp_server.py             # MCP Server
 ```
 
@@ -30,39 +30,35 @@ cd proxy_pool_project
 # 默认：收集 100 个 IP -> 验证 -> 保存 -> 输出
 python3 -m proxy_pool.cli
 
-# 收集 50 个 IP
+# 收集 50 个 IP 到池子（会验证）
 python3 -m proxy_pool.cli --target 50
 
 # 只使用指定源
 python3 -m proxy_pool.cli --sources scdn,proxymist
 
-# JSON 格式输出
-python3 -m proxy_pool.cli --json
+# 刷新池子：验证并移除无效 IP
+python3 -m proxy_pool.cli --fresh
 
-# 跳过验证
-python3 -m proxy_pool.cli --no-verify
-
-# 清空旧池子，重新收集
-python3 -m proxy_pool.cli --target 50 --fresh
-
-# 快速分配 10 个 IP（不验证，直接输出）
+# 从池子快速输出 10 个 IP（不够则自动收集补足，不验证）
 python3 -m proxy_pool.cli --output-count 10
+
+# JSON 格式输出
+python3 -m proxy_pool.cli --output-count 10 --json
 ```
 
 ## CLI 参数
 
 | 参数 | 说明 |
 |------|------|
-| `--target` | 目标收集数量（默认 100） |
+| `--target` | 收集 N 个 IP 到池子（默认 100，会验证） |
 | `--sources` | 指定源，逗号分隔 |
-| `-o, --output` | 输出文件（默认 proxy_pool.json） |
+| `-o, --output` | 池子文件路径（默认 proxy_pool.json） |
 | `-p, --protocol` | scdn 协议参数 |
 | `--country-code` | scdn 国家代码参数 |
 | `-t, --timeout` | 验证超时秒数 |
-| `--no-verify` | 跳过验证 |
-| `--no-save` | 不保存文件 |
-| `--fresh` | 清空旧池子，重新收集 |
-| `--output-count` | 快速分配 N 个 IP，自动跳过验证 |
+| `--no-verify` | `--target` 收集后跳过验证 |
+| `--fresh` | 验证现有池子，移除无效 IP |
+| `--output-count` | 从池子输出 N 个 IP，不够则自动收集补足 |
 | `--json` | JSON 数组格式输出 |
 
 ## 新增信息源
