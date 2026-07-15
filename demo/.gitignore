@@ -1,2 +1,5 @@
 # 测试 API 产生的访问日志
 access_log.jsonl
+
+# 用户临时创建的本地代理池
+local_pool.json
