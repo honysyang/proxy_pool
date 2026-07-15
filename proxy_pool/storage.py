@@ -2,6 +2,7 @@
 
 import json
 import os
+import random
 from urllib.parse import urlparse
 
 
@@ -38,3 +39,11 @@ def load_ips(input_file):
 
     data = json.loads(content)
     return list(data.keys())
+
+
+def get_random_proxy(input_file):
+    """从 JSON 池中随机获取一个代理。"""
+    ips = load_ips(input_file)
+    if not ips:
+        return None
+    return random.choice(ips)

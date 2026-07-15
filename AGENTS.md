@@ -18,7 +18,7 @@ CLI 三种核心操作：
 ## 新增信息源
 
 1. 在 `scripts/sources/` 新建 `.py`
-2. 实现 `fetch(limit=20) -> list[str]`，返回 `ip:port` 列表
+2. 实现 `fetch(limit=20, proxy=None) -> list[str]`，返回 `ip:port` 列表；`proxy` 为 `ip:port` 字符串，可选
 3. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
 
 ## 测试
@@ -39,6 +39,9 @@ python3 -m proxy_pool.cli --fresh
 
 # 快速输出 10 个
 python3 -m proxy_pool.cli --output-count 10
+
+# 使用池子中的随机代理进行收集（失败自动回退直连）
+python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 
 # MCP Server
 python3 mcp_server.py

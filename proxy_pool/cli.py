@@ -13,13 +13,15 @@ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
 
 
-def collect_ips(target, sources, output, protocol, country_code):
+def collect_ips(target, sources, output, protocol, country_code, use_pool_proxy=False):
     """调用 scripts/fetch_all.py 收集 IP。"""
     cmd = ["python3", FETCH_ALL, "--target", str(target), "--output", output, "--protocol", protocol]
     if sources:
         cmd.extend(["--sources", sources])
     if country_code:
         cmd.extend(["--country-code", country_code])
+    if use_pool_proxy:
+        cmd.append("--use-pool-proxy")
 
     result = subprocess.run(cmd, capture_output=True, text=True)
     if result.returncode != 0:
@@ -90,6 +92,7 @@ def main(argv=None):
     parser.add_argument("--country-code", default=None, help="scdn 国家代码参数")
     parser.add_argument("-t", "--timeout", type=int, default=8, help="验证超时秒数")
     parser.add_argument("--no-verify", action="store_true", help="target 收集后跳过验证")
+    parser.add_argument("--use-pool-proxy", action="store_true", help="使用池子中的随机代理进行收集（失败会自动回退直连）")
     parser.add_argument("--fresh", action="store_true", help="验证现有池子，移除无效 IP")
     parser.add_argument("--output-count", type=int, default=None, help="从池子输出 N 个 IP，不够则直接收集补足（不验证）")
     parser.add_argument("--json", action="store_true", help="JSON 数组格式输出")
@@ -106,7 +109,7 @@ def main(argv=None):
         target = 100
 
     if target is not None and target > 0:
-        collect_ips(target, args.sources, args.output, args.protocol, args.country_code)
+        collect_ips(target, args.sources, args.output, args.protocol, args.country_code, args.use_pool_proxy)
         if not args.no_verify:
             verify_pool(args.output, args.timeout)
 
@@ -116,7 +119,7 @@ def main(argv=None):
         needed = args.output_count - len(ips)
         if needed > 0:
             print(f"[*] 池子中仅有 {len(ips)} 个 IP，需要再收集 {needed} 个补足...")
-            collect_ips(needed, args.sources, args.output, args.protocol, args.country_code)
+            collect_ips(needed, args.sources, args.output, args.protocol, args.country_code, args.use_pool_proxy)
             ips = load_ips(args.output)
 
         output_ips(ips[:args.output_count], args.json)

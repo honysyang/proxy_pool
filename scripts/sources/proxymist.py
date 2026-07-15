@@ -7,9 +7,17 @@ import requests
 URL = "https://proxymist.com/zh/"
 
 
-def fetch(limit=20):
+def _proxies(proxy):
+    if not proxy:
+        return None
+    if "://" not in proxy:
+        proxy = f"http://{proxy}"
+    return {"http": proxy, "https": proxy}
+
+
+def fetch(limit=20, proxy=None):
     """返回 ip:port 列表。"""
-    resp = requests.get(URL, headers={"User-Agent": "Mozilla/5.0"}, timeout=20)
+    resp = requests.get(URL, headers={"User-Agent": "Mozilla/5.0"}, proxies=_proxies(proxy), timeout=20)
     resp.raise_for_status()
     html = resp.text
 

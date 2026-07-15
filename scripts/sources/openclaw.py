@@ -11,7 +11,15 @@ import requests
 BASE_URL = "https://openclaw.allegro.earth"
 
 
-def fetch(limit=100, delay=1.0):
+def _proxies(proxy):
+    if not proxy:
+        return None
+    if "://" not in proxy:
+        proxy = f"http://{proxy}"
+    return {"http": proxy, "https": proxy}
+
+
+def fetch(limit=100, delay=1.0, proxy=None):
     """返回 ip:port 列表，limit 为抓取页数 * 约 100。"""
     result = []
     seen = set()
@@ -19,7 +27,7 @@ def fetch(limit=100, delay=1.0):
 
     for page in range(1, pages + 1):
         url = f"{BASE_URL}/page/{page}/" if page > 1 else BASE_URL
-        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, timeout=15)
+        resp = requests.get(url, headers={"User-Agent": "Mozilla/5.0"}, proxies=_proxies(proxy), timeout=15)
         resp.raise_for_status()
 
         ips = re.findall(r"[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}\.[\d]{1,3}:[\d]+", resp.text)

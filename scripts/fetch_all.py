@@ -9,6 +9,7 @@ from datetime import datetime
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from proxy_pool.storage import get_random_proxy
 from scripts.sources import scdn, proxymist, zdaye, openclaw
 
 SOURCES = {
@@ -35,7 +36,7 @@ def save_pool(path, pool):
         json.dump(pool, f, ensure_ascii=False, indent=2)
 
 
-def collect(target=100, sources=None, output="proxy_pool.json", protocol="http", country_code=None):
+def collect(target=100, sources=None, output="proxy_pool.json", protocol="http", country_code=None, use_pool_proxy=False):
     sources = sources or list(SOURCES.keys())
     pool = load_pool(output)
     existing = set(pool.keys())
@@ -48,13 +49,34 @@ def collect(target=100, sources=None, output="proxy_pool.json", protocol="http",
             break
 
         module = SOURCES[name]
-        kwargs = {"limit": 20, "protocol": protocol, "country_code": country_code} if name == "scdn" else {"limit": max(20, target // len(sources) + 10)}
+
+        # 每个源随机选一个池子中的代理；失败时回退到本机直接请求
+        proxy = None
+        if use_pool_proxy:
+            proxy = get_random_proxy(output)
+            if proxy:
+                print(f"[*] [{name}] 尝试使用池子代理: {proxy}")
+
+        kwargs = (
+            {"limit": 20, "protocol": protocol, "country_code": country_code, "proxy": proxy}
+            if name == "scdn"
+            else {"limit": max(20, target // len(sources) + 10), "proxy": proxy}
+        )
 
         try:
             ips = module.fetch(**kwargs)
         except Exception as e:
-            stats[name] = {"error": str(e), "count": 0}
-            continue
+            if proxy:
+                print(f"[!] [{name}] 通过代理失败: {e}，尝试直接请求...")
+                kwargs["proxy"] = None
+                try:
+                    ips = module.fetch(**kwargs)
+                except Exception as e2:
+                    stats[name] = {"error": f"代理失败: {e}; 直连失败: {e2}", "count": 0}
+                    continue
+            else:
+                stats[name] = {"error": str(e), "count": 0}
+                continue
 
         added = 0
         for ip in ips:
@@ -89,6 +111,7 @@ def main():
     parser.add_argument("-o", "--output", default="proxy_pool.json", help="输出文件路径")
     parser.add_argument("-p", "--protocol", default="http", help="scdn 源协议参数")
     parser.add_argument("--country-code", default=None, help="scdn 源国家代码参数")
+    parser.add_argument("--use-pool-proxy", action="store_true", help="使用池子中的随机代理进行收集")
     args = parser.parse_args()
 
     sources = args.sources.split(",") if args.sources else None
@@ -98,6 +121,7 @@ def main():
         output=args.output,
         protocol=args.protocol,
         country_code=args.country_code,
+        use_pool_proxy=args.use_pool_proxy,
     )
 
     print(f"[*] 目标: {result['target']}，本次新增: {result['collected']}，池子总计: {result['total']}")

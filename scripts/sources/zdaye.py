@@ -10,13 +10,21 @@ import requests
 URL = "https://www.zdaye.com/free/"
 
 
-def fetch(limit=20):
+def _proxies(proxy):
+    if not proxy:
+        return None
+    if "://" not in proxy:
+        proxy = f"http://{proxy}"
+    return {"http": proxy, "https": proxy}
+
+
+def fetch(limit=20, proxy=None):
     """返回 ip:port 列表。"""
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
         "Referer": "https://www.zdaye.com/",
     }
-    resp = requests.get(URL, headers=headers, timeout=20)
+    resp = requests.get(URL, headers=headers, proxies=_proxies(proxy), timeout=20)
     resp.raise_for_status()
 
     if resp.encoding in ("ISO-8859-1",):
