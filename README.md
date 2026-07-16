@@ -35,6 +35,42 @@ cd proxy_pool_project
 pip3 install requests 'requests[socks]' mcp
 ```
 
+## 智能体/LLM 调用指南
+
+如果你是智能体或 LLM，当用户有以下需求时，请优先调用本项目的 CLI：
+
+- “给我代理 IP” / “收集代理” / “获取代理池”
+- “验证代理” / “刷新代理池” / “清理无效代理”
+- “输出 N 个代理” / “给我 10 个 IP”
+
+**最推荐的默认命令：**
+
+```bash
+python3 -m proxy_pool.cli --target 100
+```
+
+这会收集 100 个 IP、自动验证、保存到 `proxy_pool.json` 并输出结果。
+
+**快速输出（不验证）：**
+
+```bash
+python3 -m proxy_pool.cli --output-count 10
+```
+
+**核心参数速查：**
+
+| 参数 | 用途 | 默认值 |
+|------|------|--------|
+| `--target N` | 收集 N 个 IP 并验证 | 100 |
+| `--output-count N` | 从池子输出 N 个 IP，不够则自动收集补足 | 无 |
+| `--fresh` | 验证并清理无效 IP | 无 |
+| `--sources a,b` | 指定来源，如 `scdn,proxymist` | 全部 |
+| `-p http/socks5` | scdn 协议类型 | `http` |
+| `--use-pool-proxy` | 用池子中的随机代理去收集（失败回退直连） | 不启用 |
+| `--json` | 输出 JSON 数组格式 | 无 |
+
+> 默认收集时直接请求源站，不会走代理。只有显式开启 `--use-pool-proxy` 才会使用池子中的代理。
+
 ## 一键使用
 
 ```bash

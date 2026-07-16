@@ -1,131 +1,86 @@
 ---
 name: proxy-pool
-description: 当用户需要获取代理 IP 池时，使用本项目的 CLI 统一收集、验证、刷新、输出 IP。
+description: 当用户需要代理 IP 时，统一收集、验证、刷新、输出代理池。支持通过 CLI 或 MCP 调用。
 ---
 
 # Proxy Pool
 
-对外只通过 CLI 提供统一入口，池子文件为 JSON。
+本项目用于自动收集、验证并输出代理 IP 池，池子文件为 JSON。对外入口是 `proxy_pool/cli.py` 和 `mcp_server.py`。
 
-三种核心操作：
-- `--target N`：收集 N 个 IP 到池子（默认验证）
-- `--fresh`：验证并清理现有池子
-- `--output-count N`：从池子输出 N 个 IP，不够则自动收集补足
+## 什么时候使用本 Skill
 
-## 何时使用
+只要用户提到以下任意需求，就应该调用本工具：
 
-- 用户说“给我代理池”、“获取 IP”、“爬代理”、“验证代理”、“输出 10 个 IP”等。
-- 需要从多个来源聚合 IP:端口。
+- “给我一些代理 IP”
+- “收集代理” / “爬代理” / “获取代理池”
+- “验证代理是否可用”
+- “输出 N 个代理” / “给我 10 个 IP”
+- “刷新代理池” / “清理无效代理”
+- “用代理隐藏 IP” / “验证代理是否隐藏了我的真实 IP”
 
-## 项目结构
+## 推荐调用方式
 
-```text
-proxy_pool_project/
-├── scripts/
-│   ├── fetch_all.py          # 统一调度
-│   └── sources/              # IP 提取源
-├── proxy_pool/
-│   └── cli.py                # 对外统一 CLI
-├── demo/                     # 测试/验证示例
-├── skill/
-│   └── SKILL.md              # 本文件
-└── mcp_server.py             # MCP Server
-```
-
-## 核心用法
+默认先收集再验证：
 
 ```bash
-cd proxy_pool_project
+cd /home/kali/proxy_pool_project
+python3 -m proxy_pool.cli --target 100
+```
 
-# 收集 100 个并验证
-python3 -m proxy_pool.cli
+如果只需要快速拿 N 个代理（不验证）：
 
-# 收集 50 个
-python3 -m proxy_pool.cli --target 50
+```bash
+python3 -m proxy_pool.cli --output-count 10
+```
 
-# 使用池子中的随机代理去收集（失败自动回退直连）
+如果用户明确要求验证现有池子：
+
+```bash
+python3 -m proxy_pool.cli --fresh
+```
+
+如果用户想避免暴露本机 IP 去收集：
+
+```bash
 python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 ```
 
-> 默认收集时不使用代理，直接请求源站。只有显式加上 `--use-pool-proxy` 才会从现有池子中随机选代理。
+## 核心参数速查
 
-```bash
-# 刷新池子（移除无效 IP）
-python3 -m proxy_pool.cli --fresh
+| 参数 | 用途 | 默认值 |
+|------|------|--------|
+| `--target N` | 收集 N 个 IP 并验证 | 100 |
+| `--output-count N` | 从池子输出 N 个 IP，不够则自动收集补足 | 无 |
+| `--fresh` | 验证并清理无效 IP | 无 |
+| `--sources a,b` | 指定来源，如 `scdn,proxymist` | 全部 |
+| `-p http/socks5` | scdn 协议类型 | `http` |
+| `--use-pool-proxy` | 用池子中的随机代理去收集（失败回退直连） | 不启用 |
+| `--json` | 输出 JSON 数组格式 | 无 |
 
-# 快速输出 10 个 IP（不验证，不够则收集）
-python3 -m proxy_pool.cli --output-count 10
+> 默认收集时**直接请求源站**，不会走代理。只有显式加上 `--use-pool-proxy` 才会使用池子中的代理。
 
-# JSON 输出
-python3 -m proxy_pool.cli --output-count 10 --json
-```
+## MCP 调用
 
-## 新增信息源
-
-1. 在 `scripts/sources/` 新建 `.py`，实现 `fetch(limit=20, proxy=None)`
-2. 在 `scripts/fetch_all.py` 的 `SOURCES` 中注册
-
-示例：
-
-```python
-# scripts/sources/my_source.py
-import requests
-
-URL = "https://example.com/proxies"
-
-
-def _proxies(proxy):
-    if not proxy:
-        return None
-    if "://" not in proxy:
-        proxy = f"http://{proxy}"
-    return {"http": proxy, "https": proxy}
-
-
-def fetch(limit=20, proxy=None):
-    resp = requests.get(URL, proxies=_proxies(proxy), timeout=15)
-    resp.raise_for_status()
-    return ["1.2.3.4:8080", "5.6.7.8:3128"]
-```
-
-## 验证代理是否隐藏真实 IP
-
-```bash
-# 1. 确保池子里有代理
-python3 -m proxy_pool.cli --target 20 --sources scdn --no-verify
-
-# 2. 用公开 echo 服务验证
-python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
-```
-
-如果代理返回的 `origin` 与直连不同，说明本机真实 IP 已被隐藏。
-
-## MCP 配置
+配置示例：
 
 ```json
 {
   "mcpServers": {
     "proxy-pool": {
       "command": "python3",
-      "args": [
-        "/home/kali/proxy_pool_project/mcp_server.py"
-      ],
-      "env": {}
+      "args": ["/home/kali/proxy_pool_project/mcp_server.py"]
     }
   }
 }
 ```
 
-> 把路径替换为本机实际路径。
-
-### MCP 工具
-
-- `collect_proxies`：收集 IP
-- `fresh_proxies`：验证本地池
+可用工具：
+- `collect_proxies`：收集 IP 到本地池
+- `fresh_proxies`：验证并清理本地池
 - `output_proxies`：从本地池输出 N 个 IP（不够则收集补足）
-- `load_proxies`：读取本地池
+- `load_proxies`：读取本地池中的 IP 列表
 
-### 调用示例
+调用示例：
 
 ```json
 {
@@ -139,4 +94,15 @@ python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
 }
 ```
 
-> `use_pool_proxy` 默认为 `false`，即直接收集；设为 `true` 时才从池子随机选代理。
+## 验证代理是否隐藏真实 IP
+
+```bash
+python3 -m proxy_pool.cli --target 20 --sources scdn --no-verify
+python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
+```
+
+## 注意事项
+
+- 免费代理不稳定，收集后建议验证（默认会验证）。
+- 验证默认访问 `baidu.com`，某些代理对国内站通、国外站不通，需结合目标测试。
+- 公开代理通常无法访问 `127.0.0.1` 或 `192.168.x.x` 等私网地址。

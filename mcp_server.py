@@ -25,7 +25,7 @@ async def list_tools() -> list[Tool]:
     return [
         Tool(
             name="collect_proxies",
-            description="收集指定数量的 IP 到本地 JSON 池",
+            description="收集指定数量的代理 IP 到本地 JSON 池。默认直接请求源站，只有 use_pool_proxy=true 时才会用池子中的随机代理去收集（失败自动回退直连）。",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -41,7 +41,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="fresh_proxies",
-            description="验证本地 JSON 池，移除无效 IP",
+            description="验证本地 JSON 代理池，移除连接超时或不可用的 IP，返回验证结果摘要。",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -52,7 +52,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="output_proxies",
-            description="从本地池输出 N 个 IP，不够则自动收集补足",
+            description="从本地 JSON 代理池输出指定数量的 IP。如果池子不足，会自动收集补足。可指定输出为 JSON 数组格式方便程序解析。",
             inputSchema={
                 "type": "object",
                 "properties": {
@@ -69,7 +69,7 @@ async def list_tools() -> list[Tool]:
         ),
         Tool(
             name="load_proxies",
-            description="读取本地 JSON 池中的 IP 列表",
+            description="读取本地 JSON 代理池，返回当前所有 IP 列表及总数。",
             inputSchema={
                 "type": "object",
                 "properties": {
