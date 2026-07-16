@@ -280,6 +280,47 @@ python3 demo/test_pool_hide_ip.py --target-url http://你的公网地址:5000/ip
 
 将 `skill/` 目录注册为 Kimi Skill 后，可直接通过自然语言调用本项目 CLI。
 
+## 最佳实践
+
+1. **收集足够数量**
+   免费代理失效很快，建议一次性多收集一些：
+   ```bash
+   python3 -m proxy_pool.cli --target 200
+   ```
+
+2. **使用前务必验证**
+   收集后先用 `--fresh` 清理死代理：
+   ```bash
+   python3 -m proxy_pool.cli --fresh
+   ```
+
+3. **结合真实目标测试**
+   默认验证访问 `baidu.com`，通不代表能访问你的目标站。建议用 `demo/test_pool_hide_ip.py` 或自己的测试接口再验证：
+   ```bash
+   python3 demo/test_pool_hide_ip.py --target-url https://你的目标站 --count 10
+   ```
+
+4. **脚本化输出**
+   给下游程序使用时，优先用 `--json`：
+   ```bash
+   python3 -m proxy_pool.cli --output-count 20 --json > proxies.json
+   ```
+
+5. **合理设置并发**
+   默认 `--workers 4` 适合大多数情况。如果某个源频繁失败或被限流，可降低并发：
+   ```bash
+   python3 -m proxy_pool.cli --target 100 --workers 2
+   ```
+
+6. **生产环境用付费代理**
+   免费池适合临时/测试。长期稳定业务建议使用付费代理服务，并按本项目格式写入 `proxy_pool.json`。
+
+7. **谨慎使用 `--use-pool-proxy`**
+   该功能用现有代理去抓取新代理，可减少源站对本机 IP 的封锁，但如果池子本身质量差，会拖慢收集速度。建议先确保池中有一定量可用代理再开启。
+
+8. **不要提交敏感信息**
+   若 `proxy_pool.json` 中包含付费代理账号或内部 IP，请勿推送到公共仓库。
+
 ## 注意事项
 
 - 免费代理池质量不稳定，可能会出现连接超时、403、SSL 错误等，属于正常现象。
