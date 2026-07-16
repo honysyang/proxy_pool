@@ -62,6 +62,8 @@ python3 -m proxy_pool.cli --output-count 10 --json
 python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 ```
 
+> 默认收集时不使用代理，直接请求源站。只有显式加上 `--use-pool-proxy` 才会从现有池子中随机选代理。
+
 ## CLI 参数
 
 | 参数 | 说明 |
@@ -73,7 +75,7 @@ python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 | `--country-code` | scdn 国家代码参数 |
 | `-t, --timeout` | 验证超时秒数 |
 | `--no-verify` | `--target` 收集后跳过验证 |
-| `--use-pool-proxy` | 使用池子中的随机代理进行收集，失败自动回退直连 |
+| `--use-pool-proxy` | 默认不启用；启用后使用池子中的随机代理进行收集，失败自动回退直连 |
 | `--fresh` | 验证现有池子，移除无效 IP |
 | `--output-count` | 从池子输出 N 个 IP，不够则自动收集补足 |
 | `--json` | JSON 数组格式输出 |

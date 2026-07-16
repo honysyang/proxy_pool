@@ -45,7 +45,11 @@ python3 -m proxy_pool.cli --target 50
 
 # 使用池子中的随机代理去收集（失败自动回退直连）
 python3 -m proxy_pool.cli --target 100 --use-pool-proxy
+```
 
+> 默认收集时不使用代理，直接请求源站。只有显式加上 `--use-pool-proxy` 才会从现有池子中随机选代理。
+
+```bash
 # 刷新池子（移除无效 IP）
 python3 -m proxy_pool.cli --fresh
 
@@ -134,3 +138,5 @@ python3 demo/test_pool_hide_ip.py --target-url https://httpbin.org/ip --count 5
   }
 }
 ```
+
+> `use_pool_proxy` 默认为 `false`，即直接收集；设为 `true` 时才从池子随机选代理。
