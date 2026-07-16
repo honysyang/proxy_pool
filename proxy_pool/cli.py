@@ -6,8 +6,13 @@ import os
 import subprocess
 import sys
 
-from .checker import check_proxy
-from .storage import load_ips
+try:
+    from .checker import check_proxy
+    from .storage import load_ips
+except ImportError:
+    # 允许直接运行 python proxy_pool/cli.py
+    from checker import check_proxy
+    from storage import load_ips
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 FETCH_ALL = os.path.join(BASE_DIR, "scripts", "fetch_all.py")
