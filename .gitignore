@@ -3,5 +3,4 @@ __pycache__/
 *.egg-info/
 .pytest_cache/
 *.log
-/proxy_pool.json
 /proxy_pool.txt
