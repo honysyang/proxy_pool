@@ -55,6 +55,7 @@ python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 | `--sources a,b` | 指定来源，如 `scdn,proxymist` | 全部 |
 | `-p http/socks5` | scdn 协议类型 | `http` |
 | `--use-pool-proxy` | 用池子中的随机代理去收集（失败回退直连） | 不启用 |
+| `--workers` | 并发源数 | 4 |
 | `--json` | 输出 JSON 数组格式 | 无 |
 
 > 默认收集时**直接请求源站**，不会走代理。只有显式加上 `--use-pool-proxy` 才会使用池子中的代理。
@@ -89,7 +90,8 @@ python3 -m proxy_pool.cli --target 100 --use-pool-proxy
     "target_count": 50,
     "sources": "scdn",
     "protocol": "http",
-    "use_pool_proxy": false
+    "use_pool_proxy": false,
+    "workers": 4
   }
 }
 ```

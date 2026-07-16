@@ -67,6 +67,7 @@ python3 -m proxy_pool.cli --output-count 10
 | `--sources a,b` | 指定来源，如 `scdn,proxymist` | 全部 |
 | `-p http/socks5` | scdn 协议类型 | `http` |
 | `--use-pool-proxy` | 用池子中的随机代理去收集（失败回退直连） | 不启用 |
+| `--workers` | 并发源数 | 4 |
 | `--json` | 输出 JSON 数组格式 | 无 |
 
 > 默认收集时直接请求源站，不会走代理。只有显式开启 `--use-pool-proxy` 才会使用池子中的代理。
@@ -96,6 +97,9 @@ python3 -m proxy_pool.cli --output-count 10 --json
 
 # 使用池子中的随机代理去收集新 IP（失败自动回退直连）
 python3 -m proxy_pool.cli --target 100 --use-pool-proxy
+
+# 串行收集（workers 设为 1）
+python3 -m proxy_pool.cli --target 100 --workers 1
 ```
 
 > 默认收集时不使用代理，直接请求源站。只有显式加上 `--use-pool-proxy` 才会从现有池子中随机选代理。
@@ -112,6 +116,7 @@ python3 -m proxy_pool.cli --target 100 --use-pool-proxy
 | `-t, --timeout` | 验证超时秒数 |
 | `--no-verify` | `--target` 收集后跳过验证 |
 | `--use-pool-proxy` | 默认不启用；启用后使用池子中的随机代理进行收集，失败自动回退直连 |
+| `--workers` | 并发源数（默认 4，设为 1 则串行） |
 | `--fresh` | 验证现有池子，移除无效 IP |
 | `--output-count` | 从池子输出 N 个 IP，不够则自动收集补足 |
 | `--json` | JSON 数组格式输出 |
@@ -265,7 +270,8 @@ python3 demo/test_pool_hide_ip.py --target-url http://你的公网地址:5000/ip
   "arguments": {
     "target_count": 50,
     "sources": "scdn",
-    "protocol": "http"
+    "protocol": "http",
+    "workers": 4
   }
 }
 ```

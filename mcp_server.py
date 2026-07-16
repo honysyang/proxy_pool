@@ -36,6 +36,7 @@ async def list_tools() -> list[Tool]:
                     "country_code": {"type": "string"},
                     "no_verify": {"type": "boolean", "default": False},
                     "use_pool_proxy": {"type": "boolean", "default": False, "description": "是否使用池子中的随机代理进行收集"},
+                    "workers": {"type": "integer", "default": 4, "description": "并发源数"},
                 },
             },
         ),
@@ -63,6 +64,7 @@ async def list_tools() -> list[Tool]:
                     "country_code": {"type": "string"},
                     "use_pool_proxy": {"type": "boolean", "default": False, "description": "是否使用池子中的随机代理进行收集补足"},
                     "json_output": {"type": "boolean", "default": False, "description": "是否以 JSON 数组格式输出"},
+                    "workers": {"type": "integer", "default": 4, "description": "并发源数"},
                 },
                 "required": ["output_count"],
             },
@@ -124,6 +126,7 @@ def _collect(arguments: dict):
         cmd.append("--no-verify")
     if arguments.get("use_pool_proxy"):
         cmd.append("--use-pool-proxy")
+    cmd.extend(["--workers", str(arguments.get("workers", 4))])
     return _run_cli(cmd)
 
 
@@ -147,6 +150,7 @@ def _output(arguments: dict):
         cmd.append("--use-pool-proxy")
     if arguments.get("json_output"):
         cmd.append("--json")
+    cmd.extend(["--workers", str(arguments.get("workers", 4))])
     return _run_cli(cmd)
 
 
